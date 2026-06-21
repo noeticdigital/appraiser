@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Appraiser · Six-dimension evidence mode</title>
+  <meta name="description" content="Paste a product URL. Get the verdict, not the pitch — scored stingily across six dimensions on real web evidence." />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #16181B; }
+    #root { min-height: 100vh; }
+    .spin { animation: s 1s linear infinite; }
+    @keyframes s { to { transform: rotate(360deg); } }
+    ::placeholder { color: #73767B; }
+    @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+  </style>
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+// ── inline lucide-style icons ──────────────────────────────────
+const Icon = ({ size = 24, color = "currentColor", children, ...rest }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...rest}>{children}</svg>
+);
+const Search = (p) => <Icon {...p}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Icon>;
+const AlertTriangle = (p) => <Icon {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></Icon>;
+const ArrowRight = (p) => <Icon {...p}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></Icon>;
+const Loader2 = (p) => <Icon {...p}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></Icon>;
+const RotateCcw = (p) => <Icon {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></Icon>;
+
+// ── design tokens ──────────────────────────────────────────────
+const T = {
+  ink: "#16181B", ink2: "#1E2227", inkLine: "#2A2F36",
+  paper: "#EDEBE4", paperLine: "#CDCABF",
+  dark: "#1A1C1F", muted: "#73767B", mutedPaper: "#6B6E72",
+  build: "#3B6E4A", refine: "#B07D2A", notyet: "#9E3B33",
+  display: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
+  body: '"Inter", ui-sans-serif, system-ui, sans-serif',
+  mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+};
+
+const DIMS = [
+  { key: "demand", label: "Demand", hi: "someone pays / scrambles when it breaks", lo: "people find it interesting" },
+  { key: "pain", label: "Pain / status quo", hi: "costly, ongoing, duct-taped workaround today", lo: "there's no current solution" },
+  { key: "customer", label: "Customer specificity", hi: "a named person, role, and consequence", lo: "a category ('SMBs')" },
+  { key: "wedge", label: "Wedge", hi: "shippable now, someone pays this week", lo: "need the whole platform first" },
+  { key: "learning", label: "Evidence of learning", hi: "watched real usage, was surprised, adapted", lo: "surveys / demos / 'as expected'" },
+  { key: "durability", label: "Durability", hi: "specific thesis on why it gets more essential", lo: "'rising tide' / growth-rate" },
+];
+
+const BAND = {
+  strong: { color: T.build, word: "BUILD", note: "Build the wedge now." },
+  refine: { color: T.refine, word: "REFINE", note: "Promising, but load-bearing dimensions are unproven." },
+  not_yet: { color: T.notyet, word: "NOT YET", note: "The premise isn't proven. Go get evidence." },
+};
+const bandFor = (t) => (t >= 45 ? "strong" : t >= 30 ? "refine" : "not_yet");
+const scoreColor = (s) => (s >= 7 ? T.build : s >= 4 ? T.refine : T.notyet);
+
+const LOADING = [
+  "Reading the product page",
+  "Looking for demand evidence",
+  "Checking what people do instead today",
+  "Finding the actual customer",
+  "Scoring against the evidence",
+];
+
+const KEY_STORE = "gf-appraiser-key";
+
+function buildPrompt(url) {
+  return `You are a founder-mode investment diagnostic. Your job is diagnosis, not encouragement. You are appraising ONE product at this URL: ${url}
+
+First, research it with web search: what it does, who it is for, pricing, real traction or usage signals, customer reviews, and the status-quo alternative people use today. A marketing website states the founder's claims — it is NOT evidence of demand. Treat claims as claims.
+
+Then score the business model on the evidence you actually found, six dimensions, 0–10 each (60 total). Be stingy: a 7+ needs concrete behavioral evidence (people paying, expanding usage, building a workflow around it, scrambling if it vanished), not a good story or a slick site. Where you only have website claims for a dimension, cap it low and say what evidence is missing. Take a position on every dimension and state what evidence would change your mind. No praise for its own sake. Plain, blunt language. Never use: delve, crucial, robust, comprehensive, leverage, landscape, foster, showcase.
+
+Dimensions (9–10 anchor || 0–3 anchor):
+- demand: pays / scrambles when it breaks || people find it interesting
+- pain: costly ongoing duct-taped workaround today || there's no current solution
+- customer: a named person, role, consequence || a category
+- wedge: shippable now, someone pays this week || need the whole platform first
+- learning: watched real usage, was surprised, adapted || surveys / demos / as expected
+- durability: specific thesis on why it gets MORE essential in 3 years || rising tide / growth-rate
+
+Bands: 45–60 strong; 30–44 refine; <30 not proven. Then 2–3 directions: one minimal wedge (ships fastest), one ideal version (best long-term), optionally one lateral (reframes the problem) — each with effort S/M/L and risk Low/Med/High. Recommend one, tied to the weakest dimension. End with ONE concrete real-world action that produces evidence to move the weakest dimension — specific, not "validate the market".
+
+Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
+{"product":"","one_liner":"","summary":"2-3 sentence read of what you found","dimensions":[{"key":"demand","score":0,"justification":"one line tied to a fact you found","evidence_missing":"what you couldn't find","change_my_mind":"what evidence would move this"}],"weakest_link":"<dimension key>","verdict":"one blunt sentence","directions":[{"label":"","kind":"minimal_wedge|ideal|lateral","effort":"S|M|L","risk":"Low|Med|High","summary":""}],"recommendation":"one line tied to the weakest dimension","assignment":"one concrete action"}
+All six dimensions in the array, in the order listed.`;
+}
+
+function extractJSON(data) {
+  const text = (data.content || [])
+    .filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const a = text.indexOf("{"), b = text.lastIndexOf("}");
+  if (a === -1 || b === -1) throw new Error("No appraisal came back. Try again.");
+  return JSON.parse(text.slice(a, b + 1));
+}
+
+function Appraiser() {
+  const [url, setUrl] = useState("");
+  const [apiKey, setApiKey] = useState(() => {
+    try { return localStorage.getItem(KEY_STORE) || ""; } catch (e) { return ""; }
+  });
+  const [state, setState] = useState("idle"); // idle | loading | done | error
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState("");
+  const [li, setLi] = useState(0);
+  const timer = useRef(null);
+
+  function saveKey(v) {
+    setApiKey(v);
+    try { localStorage.setItem(KEY_STORE, v); } catch (e) {}
+  }
+
+  useEffect(() => {
+    if (state === "loading") {
+      timer.current = setInterval(() => setLi((i) => (i + 1) % LOADING.length), 1900);
+    } else clearInterval(timer.current);
+    return () => clearInterval(timer.current);
+  }, [state]);
+
+  async function run() {
+    const clean = url.trim();
+    if (!clean) return;
+    const key = apiKey.trim();
+    if (!key) { setErr("Add your Anthropic API key first — the field is just below the URL."); setState("error"); return; }
+    setState("loading"); setErr(""); setResult(null); setLi(0);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 4000,
+          messages: [{ role: "user", content: buildPrompt(clean) }],
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+        }),
+      });
+      if (!res.ok) {
+        let detail = "";
+        try { const e = await res.json(); detail = (e && e.error && e.error.message) || ""; } catch (x) {}
+        if (res.status === 401) throw new Error("Your API key was rejected (401). Check the key and try again.");
+        if (res.status === 429) throw new Error("Rate limited (429). Wait a moment, then retry.");
+        throw new Error(detail || ("The appraisal service returned " + res.status + ". Try again."));
+      }
+      const json = await res.json();
+      const parsed = extractJSON(json);
+      parsed.total = (parsed.dimensions || []).reduce((s, d) => s + (Number(d.score) || 0), 0);
+      parsed.url = clean;
+      setResult(parsed); setState("done");
+    } catch (e) {
+      setErr(e.message || "Something broke. Try again."); setState("error");
+    }
+  }
+
+  function reset() { setState("idle"); setResult(null); setUrl(""); setErr(""); }
+
+  return (
+    <div style={{ background: T.ink, minHeight: "100vh", color: T.paper, fontFamily: T.body }}>
+      <div style={{ maxWidth: 880, margin: "0 auto", padding: "clamp(24px,5vw,56px) clamp(18px,5vw,40px)" }}>
+
+        {/* masthead */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: `1px solid ${T.inkLine}`, paddingBottom: 14, marginBottom: "clamp(28px,6vw,44px)" }}>
+          <span style={{ fontFamily: T.mono, fontSize: 12, letterSpacing: "0.18em", color: T.muted }}>APPRAISER</span>
+          <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted }}>SIX-DIMENSION · EVIDENCE MODE</span>
+        </div>
+
+        {/* input / hero */}
+        {state !== "done" && (
+          <div style={{ marginBottom: 8 }}>
+            <h1 style={{ fontFamily: T.display, fontWeight: 500, fontSize: "clamp(30px,6vw,52px)", lineHeight: 1.04, letterSpacing: "-0.02em", margin: "0 0 18px", color: T.paper }}>
+              Paste a product.<br />Get the verdict, not the pitch.
+            </h1>
+            <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 560, margin: "0 0 30px" }}>
+              It reads the product, looks for what people actually do and pay for, and scores it stingily across six dimensions. A slick site counts for nothing on its own.
+            </p>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 320px", display: "flex", alignItems: "center", gap: 10, background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "0 14px" }}>
+                <Search size={16} color={T.muted} />
+                <input
+                  value={url} onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && state !== "loading" && run()}
+                  placeholder="https://…  product page URL"
+                  disabled={state === "loading"}
+                  style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.paper, fontFamily: T.mono, fontSize: 14, padding: "15px 0" }}
+                />
+              </div>
+              <button onClick={run} disabled={state === "loading" || !url.trim()}
+                style={{ background: T.paper, color: T.dark, border: "none", borderRadius: 2, padding: "0 24px", fontFamily: T.mono, fontWeight: 700, fontSize: 13, letterSpacing: "0.08em", cursor: state === "loading" || !url.trim() ? "default" : "pointer", opacity: state === "loading" || !url.trim() ? 0.5 : 1, display: "flex", alignItems: "center", gap: 8 }}>
+                {state === "loading" ? <Loader2 size={15} className="spin" /> : null}
+                {state === "loading" ? "WORKING" : "APPRAISE"}
+              </button>
+            </div>
+
+            {/* api key */}
+            <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "0 14px" }}>
+              <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.muted, whiteSpace: "nowrap" }}>API&nbsp;KEY</span>
+              <input
+                type="password" value={apiKey} onChange={(e) => saveKey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && state !== "loading" && url.trim() && run()}
+                placeholder="sk-ant-…  stored in this browser only"
+                autoComplete="off" spellCheck="false"
+                style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.paper, fontFamily: T.mono, fontSize: 13, padding: "13px 0" }}
+              />
+            </div>
+            <p style={{ color: T.muted, fontSize: 12, lineHeight: 1.55, fontFamily: T.mono, margin: "8px 0 0" }}>
+              Saved only in this browser's localStorage and sent directly to api.anthropic.com — nowhere else. Get a key at console.anthropic.com.
+            </p>
+          </div>
+        )}
+
+        {/* loading */}
+        {state === "loading" && (
+          <div style={{ marginTop: 40, fontFamily: T.mono, fontSize: 13, color: T.muted }}>
+            {LOADING.map((m, i) => (
+              <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", padding: "7px 0", opacity: i <= li ? 1 : 0.3, transition: "opacity .4s" }}>
+                <span style={{ color: i < li ? T.build : i === li ? T.paper : T.muted }}>{i < li ? "✓" : i === li ? "›" : "·"}</span>
+                <span style={{ color: i === li ? T.paper : "inherit" }}>{m}{i === li ? "…" : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* error */}
+        {state === "error" && (
+          <div style={{ marginTop: 28, border: `1px solid ${T.notyet}`, borderRadius: 2, padding: 18, fontFamily: T.mono, fontSize: 13, color: T.paper, display: "flex", gap: 12, alignItems: "center" }}>
+            <AlertTriangle size={18} color={T.notyet} />
+            <span>{err}</span>
+          </div>
+        )}
+
+        {/* result */}
+        {state === "done" && result && (() => {
+          const band = BAND[bandFor(result.total)];
+          return (
+            <div>
+              {/* verdict header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap", marginBottom: 22 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted, marginBottom: 6 }}>{result.url}</div>
+                  <h1 style={{ fontFamily: T.display, fontWeight: 700, fontSize: "clamp(26px,5vw,40px)", lineHeight: 1.05, letterSpacing: "-0.02em", margin: "0 0 8px", color: T.paper }}>{result.product || "Untitled product"}</h1>
+                  <div style={{ color: T.muted, fontSize: 15, maxWidth: 480 }}>{result.one_liner}</div>
+                </div>
+                <div style={{ flexShrink: 0, border: `1.5px solid ${band.color}`, borderRadius: 2, padding: "14px 18px", textAlign: "center", minWidth: 124 }}>
+                  <div style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 34, lineHeight: 1, color: band.color }}>{result.total}<span style={{ fontSize: 16, color: T.muted }}>/60</span></div>
+                  <div style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, letterSpacing: "0.14em", color: band.color, marginTop: 8 }}>{band.word}</div>
+                </div>
+              </div>
+
+              <p style={{ color: T.paper, opacity: 0.85, fontSize: 15, lineHeight: 1.6, borderLeft: `2px solid ${band.color}`, paddingLeft: 14, margin: "0 0 8px" }}>{result.verdict}</p>
+              <p style={{ color: T.muted, fontSize: 14, lineHeight: 1.6, paddingLeft: 16, margin: "0 0 32px" }}>{result.summary}</p>
+
+              {/* scorecard on paper */}
+              <div style={{ background: T.paper, color: T.dark, borderRadius: 3, padding: "clamp(18px,4vw,28px)" }}>
+                <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper, marginBottom: 18 }}>BUSINESS MODEL SCORECARD</div>
+                {(result.dimensions || []).map((d, i) => {
+                  const meta = DIMS.find((x) => x.key === d.key) || { label: d.key };
+                  const weak = d.key === result.weakest_link;
+                  const sc = Number(d.score) || 0;
+                  return (
+                    <div key={i} style={{ padding: "16px 0 16px", borderTop: i ? `1px solid ${T.paperLine}` : "none", borderLeft: weak ? `2px solid ${T.notyet}` : "none", paddingLeft: weak ? 14 : 0, marginLeft: weak ? -14 : 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                        <span style={{ fontFamily: T.display, fontWeight: 500, fontSize: 17, color: T.dark }}>
+                          {meta.label}
+                          {weak && <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: "0.1em", color: T.notyet, marginLeft: 10, verticalAlign: "middle" }}>WEAKEST LINK</span>}
+                        </span>
+                        <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 18, color: scoreColor(sc) }}>{sc}<span style={{ color: T.mutedPaper, fontSize: 12 }}>/10</span></span>
+                      </div>
+                      <div style={{ height: 5, background: "#DDD9CE", borderRadius: 3, margin: "10px 0 12px", overflow: "hidden" }}>
+                        <div style={{ width: `${sc * 10}%`, height: "100%", background: scoreColor(sc), borderRadius: 3 }} />
+                      </div>
+                      <div style={{ fontSize: 14, lineHeight: 1.55, color: T.dark, marginBottom: 6 }}>{d.justification}</div>
+                      {d.evidence_missing && <div style={{ fontSize: 13, lineHeight: 1.5, color: T.mutedPaper }}><span style={{ fontFamily: T.mono, fontSize: 11 }}>missing:</span> {d.evidence_missing}</div>}
+                      {d.change_my_mind && <div style={{ fontSize: 13, lineHeight: 1.5, color: T.mutedPaper, fontStyle: "italic" }}>would change this: {d.change_my_mind}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* directions */}
+              {result.directions && result.directions.length > 0 && (
+                <div style={{ marginTop: 32 }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted, marginBottom: 14 }}>DIRECTIONS</div>
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {result.directions.map((dir, i) => (
+                      <div key={i} style={{ background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "16px 18px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 7 }}>
+                          <span style={{ fontFamily: T.display, fontWeight: 500, fontSize: 16, color: T.paper }}>{dir.label}</span>
+                          <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, whiteSpace: "nowrap" }}>{dir.effort} · {dir.risk} risk</span>
+                        </div>
+                        <div style={{ fontSize: 14, lineHeight: 1.55, color: T.muted }}>{dir.summary}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* recommendation + assignment */}
+              <div style={{ marginTop: 26, display: "grid", gap: 16 }}>
+                {result.recommendation && (
+                  <div><span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted }}>RECOMMENDATION</span>
+                    <div style={{ fontSize: 15, lineHeight: 1.6, color: T.paper, marginTop: 6 }}>{result.recommendation}</div></div>
+                )}
+                {result.assignment && (
+                  <div style={{ borderTop: `1px solid ${T.inkLine}`, paddingTop: 16, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <ArrowRight size={18} color={T.build} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <div><span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted }}>DO THIS</span>
+                      <div style={{ fontSize: 15, lineHeight: 1.6, color: T.paper, marginTop: 6 }}>{result.assignment}</div></div>
+                  </div>
+                )}
+              </div>
+
+              <button onClick={reset} style={{ marginTop: 36, background: "transparent", color: T.muted, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                <RotateCcw size={13} /> APPRAISE ANOTHER
+              </button>
+
+              <p style={{ marginTop: 28, fontSize: 12, lineHeight: 1.6, color: T.muted, fontFamily: T.mono }}>
+                Scored from public web evidence only. Demand and Pain are inferred from what's findable, not from behavior at scale — this is where your historic MPI / CSF data replaces the guess.
+              </p>
+            </div>
+          );
+        })()}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Appraiser />);
+  </script>
+</body>
+</html>

@@ -129,7 +129,7 @@ function Appraiser() {
   async function run() {
     const clean = url.trim();
     if (!clean) return;
-    const key = apiKey.trim();
+    const key = apiKey.replace(/\s+/g, ""); // strip spaces/newlines from a wrapped paste
     if (!key) { setErr("Add your Anthropic API key first — the field is just below the URL."); setState("error"); return; }
     setState("loading"); setErr(""); setResult(null); setLi(0);
     try {
@@ -151,9 +151,9 @@ function Appraiser() {
       if (!res.ok) {
         let detail = "";
         try { const e = await res.json(); detail = (e && e.error && e.error.message) || ""; } catch (x) {}
-        if (res.status === 401) throw new Error("Your API key was rejected (401). Check the key and try again.");
-        if (res.status === 429) throw new Error("Rate limited (429). Wait a moment, then retry.");
-        throw new Error(detail || ("The appraisal service returned " + res.status + ". Try again."));
+        const labels = { 401: "Authentication failed (401)", 403: "Permission denied (403)", 429: "Rate limited (429)", 400: "Bad request (400)" };
+        const head = labels[res.status] || ("Request failed (" + res.status + ")");
+        throw new Error(detail ? (head + " — " + detail) : (head + ". Try again."));
       }
       const json = await res.json();
       const parsed = extractJSON(json);

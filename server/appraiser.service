@@ -1,0 +1,17 @@
+[Unit]
+Description=Appraiser proxy (holds Anthropic key server-side)
+After=network.target
+
+[Service]
+User=ubuntu
+EnvironmentFile=/etc/appraiser/env
+ExecStart=/usr/bin/python3 /opt/appraiser/server.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

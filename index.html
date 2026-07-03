@@ -72,6 +72,13 @@ const LOADING = [
 ];
 
 const KEY_STORE = "gf-appraiser-key";
+const PASS_STORE = "gf-appraiser-pass";
+
+// On GitHub Pages / local preview there is no backend — visitors bring their own
+// API key. Anywhere else (the EC2 host) a passcode-gated proxy holds the key.
+const KEY_MODE = /(^|\.)github\.io$/.test(location.hostname)
+  || location.hostname === "localhost" || /^127\./.test(location.hostname)
+  || location.protocol === "file:";
 
 function buildPrompt(url) {
   return `You are a founder-mode investment diagnostic. Your job is diagnosis, not encouragement. You are appraising ONE product at this URL: ${url}
@@ -105,8 +112,8 @@ function extractJSON(data) {
 
 function Appraiser() {
   const [url, setUrl] = useState("");
-  const [apiKey, setApiKey] = useState(() => {
-    try { return localStorage.getItem(KEY_STORE) || ""; } catch (e) { return ""; }
+  const [apiKey, setApiKey] = useState(() => { // API key (key mode) or passcode (proxy mode)
+    try { return localStorage.getItem(KEY_MODE ? KEY_STORE : PASS_STORE) || ""; } catch (e) { return ""; }
   });
   const [state, setState] = useState("idle"); // idle | loading | done | error
   const [result, setResult] = useState(null);
@@ -116,7 +123,7 @@ function Appraiser() {
 
   function saveKey(v) {
     setApiKey(v);
-    try { localStorage.setItem(KEY_STORE, v); } catch (e) {}
+    try { localStorage.setItem(KEY_MODE ? KEY_STORE : PASS_STORE, v); } catch (e) {}
   }
 
   useEffect(() => {
@@ -130,24 +137,30 @@ function Appraiser() {
     const clean = url.trim();
     if (!clean) return;
     const key = apiKey.replace(/\s+/g, ""); // strip spaces/newlines from a wrapped paste
-    if (!key) { setErr("Add your Anthropic API key first — the field is just below the URL."); setState("error"); return; }
+    if (!key) { setErr(KEY_MODE ? "Add your Anthropic API key first — the field is just below the URL." : "Enter the passcode first — the field is just below the URL."); setState("error"); return; }
     setState("loading"); setErr(""); setResult(null); setLi(0);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": key,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4000,
-          messages: [{ role: "user", content: buildPrompt(clean) }],
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-        }),
-      });
+      const res = KEY_MODE
+        ? await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": key,
+              "anthropic-version": "2023-06-01",
+              "anthropic-dangerous-direct-browser-access": "true",
+            },
+            body: JSON.stringify({
+              model: "claude-sonnet-4-6",
+              max_tokens: 4000,
+              messages: [{ role: "user", content: buildPrompt(clean) }],
+              tools: [{ type: "web_search_20250305", name: "web_search" }],
+            }),
+          })
+        : await fetch("api/appraise", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: clean, passcode: key }),
+          });
       if (!res.ok) {
         let detail = "";
         try { const e = await res.json(); detail = (e && e.error && e.error.message) || ""; } catch (x) {}
@@ -204,19 +217,21 @@ function Appraiser() {
               </button>
             </div>
 
-            {/* api key */}
+            {/* api key (github pages) / passcode (hosted proxy) */}
             <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "0 14px" }}>
-              <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.muted, whiteSpace: "nowrap" }}>API&nbsp;KEY</span>
+              <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.muted, whiteSpace: "nowrap" }}>{KEY_MODE ? <>API&nbsp;KEY</> : "PASSCODE"}</span>
               <input
                 type="password" value={apiKey} onChange={(e) => saveKey(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && state !== "loading" && url.trim() && run()}
-                placeholder="sk-ant-…  stored in this browser only"
+                placeholder={KEY_MODE ? "sk-ant-…  stored in this browser only" : "shared passcode"}
                 autoComplete="off" spellCheck="false"
                 style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.paper, fontFamily: T.mono, fontSize: 13, padding: "13px 0" }}
               />
             </div>
             <p style={{ color: T.muted, fontSize: 12, lineHeight: 1.55, fontFamily: T.mono, margin: "8px 0 0" }}>
-              Saved only in this browser's localStorage and sent directly to api.anthropic.com — nowhere else. Get a key at console.anthropic.com.
+              {KEY_MODE
+                ? "Saved only in this browser's localStorage and sent directly to api.anthropic.com — nowhere else. Get a key at console.anthropic.com."
+                : "Appraisals run server-side — no API key needed. Ask George for the passcode; it's remembered in this browser."}
             </p>
           </div>
         )}

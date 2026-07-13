@@ -66,9 +66,9 @@ const scoreColor = (s) => (s >= 7 ? T.build : s >= 4 ? T.refine : T.notyet);
 const LOADING = [
   "Reading the product page",
   "Looking for demand evidence",
-  "Checking what people do instead today",
-  "Finding the actual customer",
-  "Scoring against the evidence",
+  "Scoring the founder-mode lens",
+  "Estimating the MPI benchmark",
+  "Running the expert-panel lens",
 ];
 
 const KEY_STORE = "gf-appraiser-key";
@@ -80,26 +80,67 @@ const KEY_MODE = /(^|\.)github\.io$/.test(location.hostname)
   || location.hostname === "localhost" || /^127\./.test(location.hostname)
   || location.protocol === "file:";
 
+// ── MPI benchmark (Living Best QOL study — 135 concepts, real study-wide averages) ──
+const MPI_AVG = { addressable: 0.5031, market_interest: 0.273, purchase_interest: 0.1433,
+                  intrigue: 0.5436, urgency: 0.5237 };
+// Expert framework mined from 30 aging/eldercare + Japan-market expert interviews:
+// theme → share of experts who raised it. Verdict prior: 19 mixed / 7 skeptical / 4 positive.
+const EXPERT_THEMES = [
+  ["Product differentiation / scope", 0.73],
+  ["Regulatory / certification (e.g. Japan PMDA, reimbursement)", 0.67],
+  ["Incumbent competition / no blue ocean", 0.53],
+  ["Elderly adoption / technology resistance", 0.53],
+  ["Localization (language + culture)", 0.47],
+  ["Distribution / local partner requirement", 0.47],
+  ["Funding / who-pays incentive architecture", 0.40],
+];
+
 function buildPrompt(url) {
-  return `You are a founder-mode investment diagnostic. Your job is diagnosis, not encouragement. You are appraising ONE product at this URL: ${url}
+  return `You are a product diagnostic that scores ONE product at this URL through THREE independent lenses. Your job is diagnosis, not encouragement. URL: ${url}
 
-First, research it with web search: what it does, who it is for, pricing, real traction or usage signals, customer reviews, and the status-quo alternative people use today. A marketing website states the founder's claims — it is NOT evidence of demand. Treat claims as claims.
+First, research it with web search: what it does, who it is for, pricing, real traction or usage signals, customer reviews, and the status-quo alternative people use today. A marketing website states the founder's claims — it is NOT evidence of demand. Treat claims as claims. Plain, blunt language. Never use: delve, crucial, robust, comprehensive, leverage, landscape, foster, showcase.
 
-Then score the business model on the evidence you actually found, six dimensions, 0–10 each (60 total). Be stingy: a 7+ needs concrete behavioral evidence (people paying, expanding usage, building a workflow around it, scrambling if it vanished), not a good story or a slick site. Where you only have website claims for a dimension, cap it low and say what evidence is missing. Take a position on every dimension and state what evidence would change your mind. No praise for its own sake. Plain, blunt language. Never use: delve, crucial, robust, comprehensive, leverage, landscape, foster, showcase.
-
-Dimensions (9–10 anchor || 0–3 anchor):
+═══ LENS 1 — FOUNDER-MODE (YC-style), six dimensions 0–10 each (60 total) ═══
+Be stingy: a 7+ needs concrete behavioral evidence (people paying, expanding usage, building a workflow around it, scrambling if it vanished), not a good story or a slick site. Where you only have website claims, cap it low and say what evidence is missing. Take a position on every dimension.
 - demand: pays / scrambles when it breaks || people find it interesting
 - pain: costly ongoing duct-taped workaround today || there's no current solution
 - customer: a named person, role, consequence || a category
 - wedge: shippable now, someone pays this week || need the whole platform first
 - learning: watched real usage, was surprised, adapted || surveys / demos / as expected
 - durability: specific thesis on why it gets MORE essential in 3 years || rising tide / growth-rate
+Bands: 45–60 strong; 30–44 refine; <30 not proven. Then 2–3 directions (one minimal wedge, one ideal, optionally one lateral) each with effort S/M/L + risk Low/Med/High; recommend one tied to the weakest dimension; end with ONE concrete evidence-producing action.
 
-Bands: 45–60 strong; 30–44 refine; <30 not proven. Then 2–3 directions: one minimal wedge (ships fastest), one ideal version (best long-term), optionally one lateral (reframes the problem) — each with effort S/M/L and risk Low/Med/High. Recommend one, tied to the weakest dimension. End with ONE concrete real-world action that produces evidence to move the weakest dimension — specific, not "validate the market".
+═══ LENS 2 — MPI BENCHMARK (Living Best QOL concept-test methodology) ═══
+Estimate how this product would score if it were run through a large consumer concept-test survey (the Living Best MPI, a QOL/eldercare study of 135 concepts). Estimate THREE fractions 0–1, grounded in your research and calibrated to the study benchmarks:
+- addressable: fraction who would see it as appropriate for at least one buying scenario (did NOT pick "none of the above"). Study average ≈ 0.50.
+- market_interest: top-3-box interest with the 3rd box discounted 50%. Study average ≈ 0.27.
+- purchase_interest: top-2-box purchase intent with the 2nd box discounted 50%. Study average ≈ 0.14.
+Calibration anchors (addressable/interest/purchase → resulting index): BrainHQ 0.61/0.43/0.25→333 (a top performer); Comfort Linen 0.49/0.28/0.21→150; Assistme 0.39/0.20/0.14→57 (weak); Bleep 0.42/0.20/0.07→33 (bottom). Index 100 = study average. Do NOT compute the index yourself — just estimate the three fractions honestly (most products land near or below the averages) and explain your reasoning in one line, plus one line on how it compares to the benchmark.
+
+═══ LENS 3 — EXPERT PANEL (secondary cross-reference) ═══
+Assess as our panel of 30 aging/eldercare + Japan-market experts would. They are skeptical by default (of 30 interviews: 19 mixed, 7 skeptical, only 4 positive) and consistently probe these themes (share of experts who raised each): ${EXPERT_THEMES.map(([t, p]) => `${t} (${Math.round(p * 100)}%)`).join("; ")}. Judge the product against each relevant theme; do not invent enthusiasm. If it is lukewarm or fails a theme, say so. Give an overall verdict on the same 5-point scale the panel used. State the single strongest Japan-market-entry risk and any genuine enabler. If the product is outside eldercare/Japan, apply the same lens by analogy and say so.
 
 Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
-{"product":"","one_liner":"","summary":"2-3 sentence read of what you found","dimensions":[{"key":"demand","score":0,"justification":"one line tied to a fact you found","evidence_missing":"what you couldn't find","change_my_mind":"what evidence would move this"}],"weakest_link":"<dimension key>","verdict":"one blunt sentence","directions":[{"label":"","kind":"minimal_wedge|ideal|lateral","effort":"S|M|L","risk":"Low|Med|High","summary":""}],"recommendation":"one line tied to the weakest dimension","assignment":"one concrete action"}
-All six dimensions in the array, in the order listed.`;
+{"product":"","one_liner":"","summary":"2-3 sentence read of what you found",
+ "dimensions":[{"key":"demand","score":0,"justification":"one line tied to a fact you found","evidence_missing":"what you couldn't find","change_my_mind":"what evidence would move this"}],
+ "weakest_link":"<dimension key>","verdict":"one blunt sentence",
+ "directions":[{"label":"","kind":"minimal_wedge|ideal|lateral","effort":"S|M|L","risk":"Low|Med|High","summary":""}],
+ "recommendation":"one line tied to the weakest dimension","assignment":"one concrete action",
+ "mpi":{"addressable":0.0,"market_interest":0.0,"purchase_interest":0.0,"rationale":"one line on why these fractions","vs_benchmark":"one line vs study averages"},
+ "expert":{"overall_verdict":"enthusiastic_endorse|endorse|mixed|skeptical|reject","risks":[{"theme":"","severity":"high|med|low","note":"one line"}],"strengths":["one line"],"japan_entry":"single strongest entry risk or enabler","vs_quant":"expert_more_bullish|aligned|expert_more_bearish","reading":"1-2 sentences: what the expert lens adds beyond the survey score"}}
+All six YC dimensions in the array, in order.`;
+}
+
+// derive MPI indices from the three estimated fractions using the real study averages
+function computeMpi(mpi) {
+  if (!mpi) return null;
+  const a = Number(mpi.addressable) || 0, i = Number(mpi.market_interest) || 0, p = Number(mpi.purchase_interest) || 0;
+  const intrigue = a ? i / a : 0, urgency = i ? p / i : 0;
+  const cp = (a / MPI_AVG.addressable) * (i / MPI_AVG.market_interest) * (p / MPI_AVG.purchase_interest) * 100;
+  const ur = (intrigue / MPI_AVG.intrigue) * (urgency / MPI_AVG.urgency) * 100;
+  const quadrant = cp >= 200 && ur >= 100 ? "SUPERSTAR" : cp >= 100 && ur >= 100 ? "STAR"
+    : cp >= 100 ? "SLOTH" : ur >= 100 ? "LION CUB" : "PROBLEM CHILD";
+  return { ...mpi, intrigue, urgency, concept_potential: Math.round(cp), user_readiness: Math.round(ur), quadrant };
 }
 
 function extractJSON(data) {
@@ -151,7 +192,7 @@ function Appraiser() {
             },
             body: JSON.stringify({
               model: "claude-sonnet-4-6",
-              max_tokens: 4000,
+              max_tokens: 6000,
               messages: [{ role: "user", content: buildPrompt(clean) }],
               tools: [{ type: "web_search_20250305", name: "web_search" }],
             }),
@@ -171,6 +212,7 @@ function Appraiser() {
       const json = await res.json();
       const parsed = extractJSON(json);
       parsed.total = (parsed.dimensions || []).reduce((s, d) => s + (Number(d.score) || 0), 0);
+      parsed.mpi = computeMpi(parsed.mpi);
       parsed.url = clean;
       setResult(parsed); setState("done");
     } catch (e) {
@@ -259,6 +301,13 @@ function Appraiser() {
         {/* result */}
         {state === "done" && result && (() => {
           const band = BAND[bandFor(result.total)];
+          const m = result.mpi, ex = result.expert;
+          const quadColor = (q) => (q === "SUPERSTAR" || q === "STAR") ? T.build
+            : (q === "SLOTH" || q === "LION CUB") ? T.refine : T.notyet;
+          const vColor = (v) => (v === "enthusiastic_endorse" || v === "endorse") ? T.build
+            : v === "mixed" ? T.refine : T.notyet;
+          const sevColor = (s) => s === "high" ? T.notyet : s === "med" ? T.refine : T.muted;
+          const pct = (x) => `${Math.round((Number(x) || 0) * 100)}%`;
           return (
             <div>
               {/* verdict header */}
@@ -279,7 +328,7 @@ function Appraiser() {
 
               {/* scorecard on paper */}
               <div style={{ background: T.paper, color: T.dark, borderRadius: 3, padding: "clamp(18px,4vw,28px)" }}>
-                <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper, marginBottom: 18 }}>BUSINESS MODEL SCORECARD</div>
+                <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper, marginBottom: 18 }}>LENS 1 · FOUNDER-MODE (YC) SCORECARD</div>
                 {(result.dimensions || []).map((d, i) => {
                   const meta = DIMS.find((x) => x.key === d.key) || { label: d.key };
                   const weak = d.key === result.weakest_link;
@@ -337,12 +386,92 @@ function Appraiser() {
                 )}
               </div>
 
-              <button onClick={reset} style={{ marginTop: 36, background: "transparent", color: T.muted, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+              {/* ── LENS 2 · MPI BENCHMARK ── */}
+              {m && (
+                <div style={{ marginTop: 40, background: T.paper, color: T.dark, borderRadius: 3, padding: "clamp(18px,4vw,28px)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                    <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper }}>LENS 2 · MPI BENCHMARK <span style={{ opacity: 0.7 }}>(predicted vs Living Best QOL study)</span></div>
+                    <div style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.12em", color: quadColor(m.quadrant) }}>{m.quadrant}</div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+                    {[["CONCEPT POTENTIAL", m.concept_potential, "market power · X-axis"],
+                      ["USER READINESS", m.user_readiness, "acceptance · Y-axis"]].map(([lab, val, sub], i) => (
+                      <div key={i} style={{ border: `1px solid ${T.paperLine}`, borderRadius: 2, padding: "14px 16px" }}>
+                        <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: "0.12em", color: T.mutedPaper }}>{lab}</div>
+                        <div style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 30, lineHeight: 1.1, color: val >= 100 ? T.build : T.notyet }}>
+                          {val}<span style={{ fontSize: 13, color: T.mutedPaper }}> vs 100</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: T.mutedPaper }}>{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {[["Addressable market", m.addressable, MPI_AVG.addressable],
+                    ["Market interest", m.market_interest, MPI_AVG.market_interest],
+                    ["Purchasing likelihood", m.purchase_interest, MPI_AVG.purchase_interest]].map(([lab, v, avg], i) => (
+                    <div key={i} style={{ padding: "9px 0", borderTop: i ? `1px solid ${T.paperLine}` : "none" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                        <span style={{ color: T.dark }}>{lab}</span>
+                        <span style={{ fontFamily: T.mono, color: v >= avg ? T.build : T.notyet }}>{pct(v)} <span style={{ color: T.mutedPaper }}>· avg {pct(avg)}</span></span>
+                      </div>
+                      <div style={{ height: 4, background: "#DDD9CE", borderRadius: 3, marginTop: 6, position: "relative", overflow: "hidden" }}>
+                        <div style={{ width: pct(Math.min(1, v)), height: "100%", background: v >= avg ? T.build : T.notyet, borderRadius: 3 }} />
+                        <div style={{ position: "absolute", left: pct(Math.min(1, avg)), top: -2, width: 1.5, height: 8, background: T.dark, opacity: 0.55 }} />
+                      </div>
+                    </div>
+                  ))}
+                  {m.rationale && <div style={{ fontSize: 13, lineHeight: 1.55, color: T.dark, marginTop: 14 }}>{m.rationale}</div>}
+                  {m.vs_benchmark && <div style={{ fontSize: 13, lineHeight: 1.5, color: T.mutedPaper, marginTop: 6 }}>{m.vs_benchmark}</div>}
+                </div>
+              )}
+
+              {/* ── LENS 3 · EXPERT PANEL ── */}
+              {ex && (
+                <div style={{ marginTop: 40 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                    <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted }}>LENS 3 · EXPERT PANEL <span style={{ opacity: 0.7 }}>(30 aging / Japan-market experts)</span></div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      {ex.vs_quant && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted }}>{String(ex.vs_quant).replace(/_/g, " ")}</span>}
+                      <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", color: vColor(ex.overall_verdict), border: `1px solid ${vColor(ex.overall_verdict)}`, borderRadius: 2, padding: "4px 10px" }}>{String(ex.overall_verdict || "").replace(/_/g, " ").toUpperCase()}</span>
+                    </div>
+                  </div>
+                  {ex.reading && <p style={{ fontSize: 15, lineHeight: 1.6, color: T.paper, opacity: 0.9, borderLeft: `2px solid ${vColor(ex.overall_verdict)}`, paddingLeft: 14, margin: "0 0 18px" }}>{ex.reading}</p>}
+                  {ex.risks && ex.risks.length > 0 && (
+                    <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+                      {ex.risks.map((r, i) => (
+                        <div key={i} style={{ background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "12px 14px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                            <span style={{ fontFamily: T.display, fontWeight: 500, fontSize: 15, color: T.paper }}>{r.theme}</span>
+                            <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: "0.08em", color: sevColor(r.severity), whiteSpace: "nowrap" }}>{String(r.severity || "").toUpperCase()}</span>
+                          </div>
+                          {r.note && <div style={{ fontSize: 13, lineHeight: 1.5, color: T.muted, marginTop: 4 }}>{r.note}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {ex.strengths && ex.strengths.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted }}>ENABLERS</span>
+                      {ex.strengths.map((s, i) => (
+                        <div key={i} style={{ fontSize: 14, lineHeight: 1.55, color: T.paper, opacity: 0.85, marginTop: 5 }}>+ {s}</div>
+                      ))}
+                    </div>
+                  )}
+                  {ex.japan_entry && (
+                    <div style={{ borderTop: `1px solid ${T.inkLine}`, paddingTop: 14, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <AlertTriangle size={16} color={T.refine} style={{ flexShrink: 0, marginTop: 3 }} />
+                      <div><span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted }}>JAPAN-ENTRY WATCH</span>
+                        <div style={{ fontSize: 14, lineHeight: 1.6, color: T.paper, opacity: 0.9, marginTop: 5 }}>{ex.japan_entry}</div></div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button onClick={reset} style={{ marginTop: 40, background: "transparent", color: T.muted, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                 <RotateCcw size={13} /> APPRAISE ANOTHER
               </button>
 
               <p style={{ marginTop: 28, fontSize: 12, lineHeight: 1.6, color: T.muted, fontFamily: T.mono }}>
-                Scored from public web evidence only. Demand and Pain are inferred from what's findable, not from behavior at scale — this is where your historic MPI / CSF data replaces the guess.
+                Three lenses, one product. Lens 1 is founder-mode judgement. Lens 2 predicts placement on the Living Best MPI (135-concept QOL study, real study-wide averages) — a prediction, not a fielded survey. Lens 3 applies the framework 30 aging/Japan-market experts actually used; calibrated to that domain, applied by analogy elsewhere.
               </p>
             </div>
           );

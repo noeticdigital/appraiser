@@ -3,17 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Appraiser · Six-dimension evidence mode</title>
-  <meta name="description" content="Paste a product URL. Get the verdict, not the pitch — scored stingily across six dimensions on real web evidence." />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <title>Living Best · Appraiser</title>
+  <meta name="description" content="Living Best three-lens product appraisal: founder-mode judgement, MPI benchmark, and expert-panel review." />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;700;900&family=Open+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;700&display=swap" />
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #16181B; }
+    html, body { margin: 0; padding: 0; background: #012F2D; }
     #root { min-height: 100vh; }
     .spin { animation: s 1s linear infinite; }
     @keyframes s { to { transform: rotate(360deg); } }
-    ::placeholder { color: #73767B; }
+    ::placeholder { color: #7FA39F; }
     @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+    /* PDF / print: keep the branded dark theme, render colors exactly, drop UI chrome */
+    @media print {
+      @page { margin: 10mm; }
+      html, body { background: #012F2D !important; }
+      .no-print { display: none !important; }
+      .print-avoid-break { break-inside: avoid; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
   </style>
   <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
@@ -34,15 +42,18 @@ const AlertTriangle = (p) => <Icon {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48
 const ArrowRight = (p) => <Icon {...p}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></Icon>;
 const Loader2 = (p) => <Icon {...p}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></Icon>;
 const RotateCcw = (p) => <Icon {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></Icon>;
+const Download = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></Icon>;
+const FileJson = (p) => <Icon {...p}><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" /><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" /></Icon>;
 
-// ── design tokens ──────────────────────────────────────────────
+// ── design tokens (Living Best brand) ──────────────────────────
 const T = {
-  ink: "#16181B", ink2: "#1E2227", inkLine: "#2A2F36",
-  paper: "#EDEBE4", paperLine: "#CDCABF",
-  dark: "#1A1C1F", muted: "#73767B", mutedPaper: "#6B6E72",
-  build: "#3B6E4A", refine: "#B07D2A", notyet: "#9E3B33",
-  display: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
-  body: '"Inter", ui-sans-serif, system-ui, sans-serif',
+  ink: "#012F2D", ink2: "#0A3E3A", inkLine: "#1C524D",   // deep teal system
+  paper: "#F4F1EA", paperLine: "#D6D9CE",                 // warm off-white cards
+  dark: "#012F2D", muted: "#8FB0AC", mutedPaper: "#6B7A76",
+  build: "#1F9E6E", refine: "#C9922E", notyet: "#C0453B", // semantic traffic-light
+  accent: "#02A8C2", mint: "#D8F0E3",                     // Living Best cyan + mint
+  display: '"Red Hat Display", ui-sans-serif, system-ui, sans-serif',
+  body: '"Open Sans", ui-sans-serif, system-ui, sans-serif',
   mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
 };
 
@@ -118,7 +129,7 @@ Estimate how this product would score if it were run through a large consumer co
 Calibration anchors (addressable/interest/purchase → resulting index): BrainHQ 0.61/0.43/0.25→333 (a top performer); Comfort Linen 0.49/0.28/0.21→150; Assistme 0.39/0.20/0.14→57 (weak); Bleep 0.42/0.20/0.07→33 (bottom). Index 100 = study average. Do NOT compute the index yourself — just estimate the three fractions honestly (most products land near or below the averages) and explain your reasoning in one line, plus one line on how it compares to the benchmark.
 
 ═══ LENS 3 — EXPERT PANEL (secondary cross-reference) ═══
-Assess as our panel of 30 aging/eldercare + Japan-market experts would. They are skeptical by default (of 30 interviews: 19 mixed, 7 skeptical, only 4 positive) and consistently probe these themes (share of experts who raised each): ${EXPERT_THEMES.map(([t, p]) => `${t} (${Math.round(p * 100)}%)`).join("; ")}. Judge the product against each relevant theme; do not invent enthusiasm. If it is lukewarm or fails a theme, say so. Give an overall verdict on the same 5-point scale the panel used. State the single strongest Japan-market-entry risk and any genuine enabler. If the product is outside eldercare/Japan, apply the same lens by analogy and say so.
+Assess as our panel of 30 aging/eldercare + Japan-market experts would. They are skeptical by default (of 30 interviews: 19 mixed, 7 skeptical, only 4 positive) and consistently probe these themes (share of experts who raised each): ${EXPERT_THEMES.map(([t, p]) => `${t} (${Math.round(p * 100)}%)`).join("; ")}. Judge the product against each relevant theme; do not invent enthusiasm. If it is lukewarm or fails a theme, say so. For each risk set a severity to market entry: "high" = likely to block or materially delay entry unless resolved; "med" = a real obstacle that adds cost or time or needs a specific mitigation; "low" = a minor, manageable concern. Give an overall verdict on the same 5-point scale the panel used. State the single strongest Japan-market-entry risk and any genuine enabler. If the product is outside eldercare/Japan, apply the same lens by analogy and say so.
 
 Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
 {"product":"","one_liner":"","summary":"2-3 sentence read of what you found",
@@ -149,6 +160,16 @@ function extractJSON(data) {
   const a = text.indexOf("{"), b = text.lastIndexOf("}");
   if (a === -1 || b === -1) throw new Error("No appraisal came back. Try again.");
   return JSON.parse(text.slice(a, b + 1));
+}
+
+function downloadJSON(result) {
+  const slug = (result.product || "appraisal").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+  const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `living-best-appraisal-${slug || "result"}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function Appraiser() {
@@ -227,9 +248,9 @@ function Appraiser() {
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "clamp(24px,5vw,56px) clamp(18px,5vw,40px)" }}>
 
         {/* masthead */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: `1px solid ${T.inkLine}`, paddingBottom: 14, marginBottom: "clamp(28px,6vw,44px)" }}>
-          <span style={{ fontFamily: T.mono, fontSize: 12, letterSpacing: "0.18em", color: T.muted }}>APPRAISER</span>
-          <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted }}>SIX-DIMENSION · EVIDENCE MODE</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.inkLine}`, paddingBottom: 16, marginBottom: "clamp(28px,6vw,44px)", gap: 14, flexWrap: "wrap" }}>
+          <img src="lb-logo.svg" alt="Living Best" style={{ height: 34, width: "auto" }} />
+          <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted, whiteSpace: "nowrap" }}>APPRAISER · THREE-LENS</span>
         </div>
 
         {/* input / hero */}
@@ -238,8 +259,8 @@ function Appraiser() {
             <h1 style={{ fontFamily: T.display, fontWeight: 500, fontSize: "clamp(30px,6vw,52px)", lineHeight: 1.04, letterSpacing: "-0.02em", margin: "0 0 18px", color: T.paper }}>
               Paste a product.<br />Get the verdict, not the pitch.
             </h1>
-            <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 560, margin: "0 0 30px" }}>
-              It reads the product, looks for what people actually do and pay for, and scores it stingily across six dimensions. A slick site counts for nothing on its own.
+            <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 580, margin: "0 0 30px" }}>
+              It researches the product, then scores it through three lenses — founder-mode judgement, the Living Best MPI benchmark, and a 30-expert panel review. A slick site counts for nothing on its own.
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 320px", display: "flex", alignItems: "center", gap: 10, background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "0 14px" }}>
@@ -436,7 +457,16 @@ function Appraiser() {
                   </div>
                   {ex.reading && <p style={{ fontSize: 15, lineHeight: 1.6, color: T.paper, opacity: 0.9, borderLeft: `2px solid ${vColor(ex.overall_verdict)}`, paddingLeft: 14, margin: "0 0 18px" }}>{ex.reading}</p>}
                   {ex.risks && ex.risks.length > 0 && (
-                    <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                        <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted }}>RISKS FLAGGED</span>
+                        <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, letterSpacing: "0.02em" }}>severity to Japan entry:&nbsp;
+                          <span style={{ color: T.notyet }}>HIGH</span> likely blocker&nbsp;·&nbsp;
+                          <span style={{ color: T.refine }}>MED</span> adds cost/time&nbsp;·&nbsp;
+                          <span style={{ color: T.muted }}>LOW</span> manageable
+                        </span>
+                      </div>
+                    <div style={{ display: "grid", gap: 8 }}>
                       {ex.risks.map((r, i) => (
                         <div key={i} style={{ background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "12px 14px" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
@@ -446,6 +476,7 @@ function Appraiser() {
                           {r.note && <div style={{ fontSize: 13, lineHeight: 1.5, color: T.muted, marginTop: 4 }}>{r.note}</div>}
                         </div>
                       ))}
+                    </div>
                     </div>
                   )}
                   {ex.strengths && ex.strengths.length > 0 && (
@@ -466,9 +497,17 @@ function Appraiser() {
                 </div>
               )}
 
-              <button onClick={reset} style={{ marginTop: 40, background: "transparent", color: T.muted, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-                <RotateCcw size={13} /> APPRAISE ANOTHER
-              </button>
+              <div className="no-print" style={{ marginTop: 40, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button onClick={() => window.print()} style={{ background: T.paper, color: T.dark, border: "none", borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                  <Download size={14} /> SAVE AS PDF
+                </button>
+                <button onClick={() => downloadJSON(result)} style={{ background: "transparent", color: T.muted, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                  <FileJson size={14} /> DATA (JSON)
+                </button>
+                <button onClick={reset} style={{ background: "transparent", color: T.muted, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                  <RotateCcw size={13} /> APPRAISE ANOTHER
+                </button>
+              </div>
 
               <p style={{ marginTop: 28, fontSize: 12, lineHeight: 1.6, color: T.muted, fontFamily: T.mono }}>
                 Three lenses, one product. Lens 1 is founder-mode judgement. Lens 2 predicts placement on the Living Best MPI (135-concept QOL study, real study-wide averages) — a prediction, not a fielded survey. Lens 3 applies the framework 30 aging/Japan-market experts actually used; calibrated to that domain, applied by analogy elsewhere.

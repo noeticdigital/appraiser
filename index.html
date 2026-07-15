@@ -162,6 +162,18 @@ function extractJSON(data) {
   return JSON.parse(text.slice(a, b + 1));
 }
 
+// Browsers name a "Save as PDF" file after document.title — set it to the
+// concept name for the duration of the print, then restore it.
+function savePdf(result) {
+  const name = "Living Best Appraisal — " + (result.product || "Untitled product");
+  const prev = document.title;
+  document.title = name;
+  const restore = () => { document.title = prev; window.removeEventListener("afterprint", restore); };
+  window.addEventListener("afterprint", restore);
+  setTimeout(restore, 60000); // fallback if afterprint never fires
+  window.print();
+}
+
 function downloadJSON(result) {
   const slug = (result.product || "appraisal").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
   const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
@@ -519,7 +531,7 @@ function Appraiser() {
               )}
 
               <div className="no-print" style={{ marginTop: 40, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button onClick={() => window.print()} style={{ background: T.paper, color: T.dark, border: "none", borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={() => savePdf(result)} style={{ background: T.paper, color: T.dark, border: "none", borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                   <Download size={14} /> SAVE AS PDF
                 </button>
                 <button onClick={() => downloadJSON(result)} style={{ background: "transparent", color: T.muted, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>

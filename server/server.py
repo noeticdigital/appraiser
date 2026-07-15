@@ -73,13 +73,27 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _read_json(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        data = json.loads(self.rfile.read(length))
+        assert isinstance(data, dict)
+        return data
+
     def do_POST(self):
-        if self.path.rstrip("/") != "/appraise":
+        path = self.path.rstrip("/")
+        # lightweight passcode-gate check for bring-your-own-key clients
+        if path == "/verify":
+            try:
+                data = self._read_json()
+            except Exception:
+                return self._send(400, {"error": {"message": "send JSON: {passcode}"}})
+            if str(data.get("passcode", "")) != PASSCODE:
+                return self._send(401, {"error": {"message": "wrong passcode"}})
+            return self._send(200, {"ok": True})
+        if path != "/appraise":
             return self._send(404, {"error": {"message": "not found"}})
         try:
-            length = int(self.headers.get("Content-Length") or 0)
-            data = json.loads(self.rfile.read(length))
-            assert isinstance(data, dict)
+            data = self._read_json()
         except Exception:
             return self._send(400, {"error": {"message": "send JSON: {url, passcode}"}})
         if str(data.get("passcode", "")) != PASSCODE:

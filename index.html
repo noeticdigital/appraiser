@@ -190,24 +190,22 @@ function Appraiser() {
   // On the hosted proxy, the user can pick: shared passcode OR their own key.
   const [authMode, setAuthMode] = useState(KEY_MODE ? "byokey" : "passcode");
   const byo = KEY_MODE || authMode === "byokey"; // true → call Anthropic directly with the entered key
-  const storeFor = (m) => (m === "byokey" ? KEY_STORE : PASS_STORE);
-  const [apiKey, setApiKey] = useState(() => {
-    try { return localStorage.getItem(storeFor(KEY_MODE ? "byokey" : "passcode")) || ""; } catch (e) { return ""; }
-  });
+  // Two independent credentials. On the hosted host, BYO mode needs BOTH: the
+  // access passcode (gate, verified server-side) AND the user's own API key.
+  const needsPass = !KEY_MODE;               // hosted host always requires the passcode
+  const load = (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
+  const [keyVal, setKeyVal] = useState(() => load(KEY_STORE));
+  const [passVal, setPassVal] = useState(() => load(PASS_STORE));
+  const saveKeyVal = (v) => { setKeyVal(v); try { localStorage.setItem(KEY_STORE, v); } catch (e) {} };
+  const savePassVal = (v) => { setPassVal(v); try { localStorage.setItem(PASS_STORE, v); } catch (e) {} };
   const [state, setState] = useState("idle"); // idle | loading | done | error
   const [result, setResult] = useState(null);
   const [err, setErr] = useState("");
   const [li, setLi] = useState(0);
   const timer = useRef(null);
 
-  function saveKey(v) {
-    setApiKey(v);
-    try { localStorage.setItem(storeFor(authMode), v); } catch (e) {}
-  }
-  function switchMode(m) {
-    setAuthMode(m); setErr("");
-    try { setApiKey(localStorage.getItem(storeFor(m)) || ""); } catch (e) { setApiKey(""); }
-  }
+  function switchMode(m) { setAuthMode(m); setErr(""); }
+  function fail(msg) { setErr(msg); setState("error"); }
 
   useEffect(() => {
     if (state === "loading") {
@@ -219,10 +217,21 @@ function Appraiser() {
   async function run() {
     const clean = url.trim();
     if (!clean) return;
-    const key = apiKey.replace(/\s+/g, ""); // strip spaces/newlines from a wrapped paste
-    if (!key) { setErr(byo ? "Add your Anthropic API key first — the field is just below the URL." : "Enter the passcode first — the field is just below the URL."); setState("error"); return; }
+    const key = keyVal.replace(/\s+/g, "");   // strip spaces/newlines from a wrapped paste
+    const pass = passVal.replace(/\s+/g, "");
+    // validate the credentials this mode needs
+    if (needsPass && !pass) return fail("Enter the access passcode first.");
+    if (byo && !key) return fail("Add your Anthropic API key first.");
     setState("loading"); setErr(""); setResult(null); setLi(0);
     try {
+      // hosted BYO: verify the passcode gate server-side before spending the key
+      if (byo && needsPass) {
+        const vr = await fetch("api/verify", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ passcode: pass }),
+        });
+        if (!vr.ok) return fail(vr.status === 401 ? "Wrong access passcode." : "Passcode check failed (" + vr.status + "). Try again.");
+      }
       const res = byo
         ? await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
@@ -242,7 +251,7 @@ function Appraiser() {
         : await fetch("api/appraise", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: clean, passcode: key }),
+            body: JSON.stringify({ url: clean, passcode: pass }),
           });
       if (!res.ok) {
         let detail = "";
@@ -313,19 +322,33 @@ function Appraiser() {
               </div>
             )}
 
-            {/* api key (bring-your-own) / passcode field */}
-            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "0 14px" }}>
-              <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.muted, whiteSpace: "nowrap" }}>{byo ? <>API&nbsp;KEY</> : "PASSCODE"}</span>
-              <input
-                type="password" value={apiKey} onChange={(e) => saveKey(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && state !== "loading" && url.trim() && run()}
-                placeholder={byo ? "sk-ant-…  stored in this browser only" : "shared passcode"}
-                autoComplete="off" spellCheck="false"
-                style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: T.paper, fontFamily: T.mono, fontSize: 13, padding: "13px 0" }}
-              />
-            </div>
+            {/* credential fields — passcode gate (hosted) and/or bring-your-own key */}
+            {(() => {
+              const row = { marginTop: 10, display: "flex", alignItems: "center", gap: 10, background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "0 14px" };
+              const lab = { fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.muted, whiteSpace: "nowrap" };
+              const inp = { flex: 1, background: "transparent", border: "none", outline: "none", color: T.paper, fontFamily: T.mono, fontSize: 13, padding: "13px 0" };
+              const onEnter = (e) => e.key === "Enter" && state !== "loading" && url.trim() && run();
+              return (<>
+                {needsPass && (
+                  <div style={row}>
+                    <span style={lab}>PASSCODE</span>
+                    <input type="password" value={passVal} onChange={(e) => savePassVal(e.target.value)}
+                      onKeyDown={onEnter} placeholder="access passcode" autoComplete="off" spellCheck="false" style={inp} />
+                  </div>
+                )}
+                {byo && (
+                  <div style={row}>
+                    <span style={lab}>API&nbsp;KEY</span>
+                    <input type="password" value={keyVal} onChange={(e) => saveKeyVal(e.target.value)}
+                      onKeyDown={onEnter} placeholder="sk-ant-…  stored in this browser only" autoComplete="off" spellCheck="false" style={inp} />
+                  </div>
+                )}
+              </>);
+            })()}
             <p style={{ color: T.muted, fontSize: 12, lineHeight: 1.55, fontFamily: T.mono, margin: "8px 0 0" }}>
-              {byo
+              {byo && needsPass
+                ? "Access passcode required. Your own Anthropic key is saved only in this browser and sent directly to api.anthropic.com — the passcode is checked server-side but never sees your key."
+                : byo
                 ? "Your key is saved only in this browser's localStorage and sent directly to api.anthropic.com — nowhere else. Get a key at console.anthropic.com."
                 : "Appraisals run server-side on the shared key — no API key needed. Ask George for the passcode; it's remembered in this browser."}
             </p>

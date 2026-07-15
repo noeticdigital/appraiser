@@ -129,7 +129,7 @@ Estimate how this product would score if it were run through a large consumer co
 Calibration anchors (addressable/interest/purchase → resulting index): BrainHQ 0.61/0.43/0.25→333 (a top performer); Comfort Linen 0.49/0.28/0.21→150; Assistme 0.39/0.20/0.14→57 (weak); Bleep 0.42/0.20/0.07→33 (bottom). Index 100 = study average. Do NOT compute the index yourself — just estimate the three fractions honestly (most products land near or below the averages) and explain your reasoning in one line, plus one line on how it compares to the benchmark.
 
 ═══ LENS 3 — EXPERT PANEL (secondary cross-reference) ═══
-Assess as our panel of 30 aging/eldercare + Japan-market experts would. They are skeptical by default (of 30 interviews: 19 mixed, 7 skeptical, only 4 positive) and consistently probe these themes (share of experts who raised each): ${EXPERT_THEMES.map(([t, p]) => `${t} (${Math.round(p * 100)}%)`).join("; ")}. Judge the product against each relevant theme; do not invent enthusiasm. If it is lukewarm or fails a theme, say so. For each risk set a severity to market entry: "high" = likely to block or materially delay entry unless resolved; "med" = a real obstacle that adds cost or time or needs a specific mitigation; "low" = a minor, manageable concern. Give an overall verdict on the same 5-point scale the panel used. State the single strongest Japan-market-entry risk and any genuine enabler. If the product is outside eldercare/Japan, apply the same lens by analogy and say so.
+Assess as our panel of 30 aging/eldercare + Japan-market experts would. They are skeptical by default (of 30 interviews: 19 mixed, 7 skeptical, only 4 positive) and consistently probe these themes (share of experts who raised each): ${EXPERT_THEMES.map(([t, p]) => `${t} (${Math.round(p * 100)}%)`).join("; ")}. Judge the product against each relevant theme; do not invent enthusiasm. If it is lukewarm or fails a theme, say so. For each risk set how hard it is to overcome for market entry: "hard" = likely to block or materially delay entry unless resolved; "medium" = a real obstacle that adds cost or time or needs a specific mitigation; "easy" = a minor, manageable concern. Give an overall verdict on the same 5-point scale the panel used. State the single strongest Japan-market-entry risk and any genuine enabler. If the product is outside eldercare/Japan, apply the same lens by analogy and say so.
 
 Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
 {"product":"","one_liner":"","summary":"2-3 sentence read of what you found",
@@ -138,7 +138,7 @@ Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
  "directions":[{"label":"","kind":"minimal_wedge|ideal|lateral","effort":"S|M|L","risk":"Low|Med|High","summary":""}],
  "recommendation":"one line tied to the weakest dimension","assignment":"one concrete action",
  "mpi":{"addressable":0.0,"market_interest":0.0,"purchase_interest":0.0,"rationale":"one line on why these fractions","vs_benchmark":"one line vs study averages"},
- "expert":{"overall_verdict":"enthusiastic_endorse|endorse|mixed|skeptical|reject","risks":[{"theme":"","severity":"high|med|low","note":"one line"}],"strengths":["one line"],"japan_entry":"single strongest entry risk or enabler","vs_quant":"expert_more_bullish|aligned|expert_more_bearish","reading":"1-2 sentences: what the expert lens adds beyond the survey score"}}
+ "expert":{"overall_verdict":"enthusiastic_endorse|endorse|mixed|skeptical|reject","risks":[{"theme":"","severity":"hard|medium|easy","note":"one line"}],"strengths":["one line"],"japan_entry":"single strongest entry risk or enabler","vs_quant":"expert_more_bullish|aligned|expert_more_bearish","reading":"1-2 sentences: what the expert lens adds beyond the survey score"}}
 All six YC dimensions in the array, in order.`;
 }
 
@@ -258,7 +258,7 @@ function Appraiser() {
 
         {/* masthead */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.inkLine}`, paddingBottom: 16, marginBottom: "clamp(28px,6vw,44px)", gap: 14, flexWrap: "wrap" }}>
-          <img src="lb-logo.svg" alt="Living Best" style={{ height: 34, width: "auto" }} />
+          <img src="lb-logo.svg" alt="Living Best" style={{ height: 52, width: "auto" }} />
           <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted, whiteSpace: "nowrap" }}>APPRAISER · THREE-LENS</span>
         </div>
 
@@ -348,7 +348,7 @@ function Appraiser() {
             : (q === "SLOTH" || q === "LION CUB") ? T.refine : T.notyet;
           const vColor = (v) => (v === "enthusiastic_endorse" || v === "endorse") ? T.build
             : v === "mixed" ? T.refine : T.notyet;
-          const sevColor = (s) => s === "high" ? T.notyet : s === "med" ? T.refine : T.muted;
+          const sevColor = (s) => s === "hard" ? T.notyet : s === "medium" ? T.refine : T.build;
           const pct = (x) => `${Math.round((Number(x) || 0) * 100)}%`;
           return (
             <div>
@@ -481,10 +481,10 @@ function Appraiser() {
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
                         <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted }}>RISKS FLAGGED</span>
-                        <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, letterSpacing: "0.02em" }}>severity to Japan entry:&nbsp;
-                          <span style={{ color: T.notyet }}>HIGH</span> likely blocker&nbsp;·&nbsp;
-                          <span style={{ color: T.refine }}>MED</span> adds cost/time&nbsp;·&nbsp;
-                          <span style={{ color: T.muted }}>LOW</span> manageable
+                        <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, letterSpacing: "0.02em" }}>difficulty to overcome:&nbsp;
+                          <span style={{ color: T.notyet }}>HARD</span> likely blocker&nbsp;·&nbsp;
+                          <span style={{ color: T.refine }}>MEDIUM</span> adds cost/time&nbsp;·&nbsp;
+                          <span style={{ color: T.build }}>EASY</span> manageable
                         </span>
                       </div>
                     <div style={{ display: "grid", gap: 8 }}>

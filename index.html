@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Living Best · Appraiser</title>
-  <meta name="description" content="Living Best three-lens product appraisal: founder-mode judgement, MPI benchmark, and expert-panel review." />
+  <title>Living Best · Multifactorial Market Potential Indicator (MPI)</title>
+  <meta name="description" content="Multifactorial Market Potential Indicator (MPI): four lenses — Silicon Valley View, Japan Consumer View, Expert View, Market Landscape View — with an executive synthesis." />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;700;900&family=Open+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;700&display=swap" />
   <style>
     * { box-sizing: border-box; }
@@ -75,21 +75,63 @@ const bandFor = (t) => (t >= 45 ? "strong" : t >= 30 ? "refine" : "not_yet");
 const scoreColor = (s) => (s >= 7 ? T.build : s >= 4 ? T.refine : T.notyet);
 
 const LOADING = [
-  "Reading the product page",
-  "Looking for demand evidence",
-  "Scoring the founder-mode lens",
-  "Estimating the MPI benchmark",
-  "Running the expert-panel lens",
+  "Researching the product",
+  "Scoring the Silicon Valley view",
+  "Estimating the Japan consumer view",
+  "Running the expert view",
+  "Mapping the market landscape",
+  "Writing the executive summary",
 ];
 
 const KEY_STORE = "gf-appraiser-key";
 const PASS_STORE = "gf-appraiser-pass";
 
-// On GitHub Pages / local preview there is no backend — visitors bring their own
-// API key. Anywhere else (the EC2 host) a passcode-gated proxy holds the key.
-const KEY_MODE = /(^|\.)github\.io$/.test(location.hostname)
-  || location.hostname === "localhost" || /^127\./.test(location.hostname)
-  || location.protocol === "file:";
+// ── access gate ────────────────────────────────────────────────
+// Bring-your-own-key everywhere, gated by an access passcode. Only the
+// SHA-256 of the passcode ships in this file. To change the passcode:
+//   printf '%s' "new-passcode" | shasum -a 256   → paste the hex here.
+const PASS_HASH = "66746a55e280d6eadc342b0c6490901a3a0d92f4213e492b8e029aa59e147101";
+
+// Compact SHA-256 (pure JS — crypto.subtle is unavailable on plain-HTTP hosts).
+function sha256hex(str) {
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const bytes = Array.from(new TextEncoder().encode(str));
+  const bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (let i = 7; i >= 0; i--) bytes.push((bitLen / Math.pow(2, i * 8)) & 0xff);
+  const rr = (x, n) => (x >>> n) | (x << (32 - n));
+  const w = new Array(64);
+  for (let off = 0; off < bytes.length; off += 64) {
+    for (let i = 0; i < 16; i++)
+      w[i] = (bytes[off+4*i] << 24) | (bytes[off+4*i+1] << 16) | (bytes[off+4*i+2] << 8) | bytes[off+4*i+3];
+    for (let i = 16; i < 64; i++) {
+      const s0 = rr(w[i-15],7) ^ rr(w[i-15],18) ^ (w[i-15] >>> 3);
+      const s1 = rr(w[i-2],17) ^ rr(w[i-2],19) ^ (w[i-2] >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let [a,b,c,d,e,f,g,h] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[i] + w[i]) | 0;
+      const S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H = H.map((x, i) => (x + [a,b,c,d,e,f,g,h][i]) | 0);
+  }
+  return H.map(x => (x >>> 0).toString(16).padStart(8, "0")).join("");
+}
 
 // ── MPI benchmark (Living Best QOL study — 135 concepts, real study-wide averages) ──
 const MPI_AVG = { addressable: 0.5031, market_interest: 0.273, purchase_interest: 0.1433,
@@ -109,9 +151,9 @@ const EXPERT_THEMES = [
 function buildPrompt(url) {
   return `You are a product diagnostic that scores ONE product at this URL through THREE independent lenses. Your job is diagnosis, not encouragement. URL: ${url}
 
-First, research it with web search: what it does, who it is for, pricing, real traction or usage signals, customer reviews, and the status-quo alternative people use today. A marketing website states the founder's claims — it is NOT evidence of demand. Treat claims as claims. Plain, blunt language. Never use: delve, crucial, robust, comprehensive, leverage, landscape, foster, showcase.
+First, research it with web search: what it does, who it is for, pricing, real traction or usage signals, customer reviews, named competitors and substitutes with their pricing, and the status-quo alternative people use today. A marketing website states the founder's claims — it is NOT evidence of demand. Treat claims as claims. Plain, blunt language. Never use: delve, crucial, robust, comprehensive, leverage, foster, showcase.
 
-═══ LENS 1 — FOUNDER-MODE (YC-style), six dimensions 0–10 each (60 total) ═══
+═══ LENS 1 — SILICON VALLEY VIEW (founder-mode, YC-style), six dimensions 0–10 each (60 total) ═══
 Be stingy: a 7+ needs concrete behavioral evidence (people paying, expanding usage, building a workflow around it, scrambling if it vanished), not a good story or a slick site. Where you only have website claims, cap it low and say what evidence is missing. Take a position on every dimension.
 - demand: pays / scrambles when it breaks || people find it interesting
 - pain: costly ongoing duct-taped workaround today || there's no current solution
@@ -121,15 +163,26 @@ Be stingy: a 7+ needs concrete behavioral evidence (people paying, expanding usa
 - durability: specific thesis on why it gets MORE essential in 3 years || rising tide / growth-rate
 Bands: 45–60 strong; 30–44 refine; <30 not proven. Then 2–3 directions (one minimal wedge, one ideal, optionally one lateral) each with effort S/M/L + risk Low/Med/High; recommend one tied to the weakest dimension; end with ONE concrete evidence-producing action.
 
-═══ LENS 2 — MPI BENCHMARK (Living Best QOL concept-test methodology) ═══
+═══ LENS 2 — JAPAN CONSUMER VIEW (Living Best MPI concept-test benchmark) ═══
 Estimate how this product would score if it were run through a large consumer concept-test survey (the Living Best MPI, a QOL/eldercare study of 135 concepts). Estimate THREE fractions 0–1, grounded in your research and calibrated to the study benchmarks:
 - addressable: fraction who would see it as appropriate for at least one buying scenario (did NOT pick "none of the above"). Study average ≈ 0.50.
 - market_interest: top-3-box interest with the 3rd box discounted 50%. Study average ≈ 0.27.
 - purchase_interest: top-2-box purchase intent with the 2nd box discounted 50%. Study average ≈ 0.14.
 Calibration anchors (addressable/interest/purchase → resulting index): BrainHQ 0.61/0.43/0.25→333 (a top performer); Comfort Linen 0.49/0.28/0.21→150; Assistme 0.39/0.20/0.14→57 (weak); Bleep 0.42/0.20/0.07→33 (bottom). Index 100 = study average. Do NOT compute the index yourself — just estimate the three fractions honestly (most products land near or below the averages) and explain your reasoning in one line, plus one line on how it compares to the benchmark.
 
-═══ LENS 3 — EXPERT PANEL (secondary cross-reference) ═══
+═══ LENS 3 — EXPERT VIEW (30-expert panel, secondary cross-reference) ═══
 Assess as our panel of 30 aging/eldercare + Japan-market experts would. They are skeptical by default (of 30 interviews: 19 mixed, 7 skeptical, only 4 positive) and consistently probe these themes (share of experts who raised each): ${EXPERT_THEMES.map(([t, p]) => `${t} (${Math.round(p * 100)}%)`).join("; ")}. Judge the product against each relevant theme; do not invent enthusiasm. If it is lukewarm or fails a theme, say so. For each risk set how hard it is to overcome for market entry: "hard" = likely to block or materially delay entry unless resolved; "medium" = a real obstacle that adds cost or time or needs a specific mitigation; "easy" = a minor, manageable concern. Give an overall verdict on the same 5-point scale the panel used. State the single strongest Japan-market-entry risk and any genuine enabler. If the product is outside eldercare/Japan, apply the same lens by analogy and say so.
+
+═══ LENS 4 — MARKET LANDSCAPE VIEW (positioning + competitive research) ═══
+Do real competitive research with web search — do not stop at the product's own claims about competitors.
+- Identify 4–7 NAMED alternatives a buyer would actually consider: direct competitors, adjacent products, and the status-quo substitute (including "do nothing" or a human service if that is the real alternative). For each: what it is in one line, pricing where findable, and — honestly — whether the appraised product beats it, matches it, or loses to it, and on what.
+- Category maturity: nascent (few players, unproven demand) / growing (rising entrants, demand forming) / crowded (many similar offers, feature parity) / consolidating (incumbents absorbing the category).
+- Positioning: name the TWO buying criteria that actually decide purchases in this category (not the vendor's preferred framing), state where this product sits on each, and who sits closest to it.
+- White space: is the claimed differentiation real, defensible, and valued by buyers — or marketing? One blunt line.
+- Positioning statement: one sentence — "For [buyer] who [need], this is the [category] that [key difference], unlike [nearest alternative]."
+
+═══ EXECUTIVE SUMMARY — synthesize all four lenses ═══
+After completing all four lenses, write the synthesis a decision-maker reads first: an overall call in 2–3 sentences (invest attention / proceed with conditions / pass — and why), one line per lens, where the lenses converge, the sharpest tension between any two lenses and which one to trust more here, and the single next step.
 
 Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
 {"product":"","one_liner":"","summary":"2-3 sentence read of what you found",
@@ -138,8 +191,10 @@ Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
  "directions":[{"label":"","kind":"minimal_wedge|ideal|lateral","effort":"S|M|L","risk":"Low|Med|High","summary":""}],
  "recommendation":"one line tied to the weakest dimension","assignment":"one concrete action",
  "mpi":{"addressable":0.0,"market_interest":0.0,"purchase_interest":0.0,"rationale":"one line on why these fractions","vs_benchmark":"one line vs study averages"},
- "expert":{"overall_verdict":"enthusiastic_endorse|endorse|mixed|skeptical|reject","risks":[{"theme":"","severity":"hard|medium|easy","note":"one line"}],"strengths":["one line"],"japan_entry":"single strongest entry risk or enabler","vs_quant":"expert_more_bullish|aligned|expert_more_bearish","reading":"1-2 sentences: what the expert lens adds beyond the survey score"}}
-All six YC dimensions in the array, in order.`;
+ "expert":{"overall_verdict":"enthusiastic_endorse|endorse|mixed|skeptical|reject","risks":[{"theme":"","severity":"hard|medium|easy","note":"one line"}],"strengths":["one line"],"japan_entry":"single strongest entry risk or enabler","vs_quant":"expert_more_bullish|aligned|expert_more_bearish","reading":"1-2 sentences: what the expert lens adds beyond the survey score"},
+ "landscape":{"category_maturity":"nascent|growing|crowded|consolidating","competitors":[{"name":"","type":"direct|adjacent|substitute","note":"what it is + pricing if found","edge":"beats/matches/loses vs this product, and on what"}],"axes":"the two criteria that decide purchases + where this product sits on each","nearest":"who sits closest and why","white_space":"one blunt line: real differentiation or marketing","positioning_statement":"For [buyer] who [need], this is the [category] that [difference], unlike [nearest alternative]","read":"1-2 sentence blunt read of the competitive position"},
+ "exec":{"overall":"2-3 sentence call: invest attention / proceed with conditions / pass — and why","silicon_valley":"one line","japan_consumer":"one line","expert":"one line","market_landscape":"one line","convergence":"one line: where the lenses agree","tension":"one line: sharpest disagreement between two lenses and which to trust here","next_step":"one line"}}
+All six dimensions in the array, in order.`;
 }
 
 // derive MPI indices from the three estimated fractions using the real study averages
@@ -165,7 +220,7 @@ function extractJSON(data) {
 // Browsers name a "Save as PDF" file after document.title — set it to the
 // concept name for the duration of the print, then restore it.
 function savePdf(result) {
-  const name = "Living Best Appraisal — " + (result.product || "Untitled product");
+  const name = "Living Best MPI — " + (result.product || "Untitled product");
   const prev = document.title;
   document.title = name;
   const restore = () => { document.title = prev; window.removeEventListener("afterprint", restore); };
@@ -179,20 +234,15 @@ function downloadJSON(result) {
   const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `living-best-appraisal-${slug || "result"}.json`;
+  a.download = `living-best-mpi-${slug || "result"}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function Appraiser() {
   const [url, setUrl] = useState("");
-  // On GitHub Pages there is no proxy, so it is always bring-your-own-key.
-  // On the hosted proxy, the user can pick: shared passcode OR their own key.
-  const [authMode, setAuthMode] = useState(KEY_MODE ? "byokey" : "passcode");
-  const byo = KEY_MODE || authMode === "byokey"; // true → call Anthropic directly with the entered key
-  // Two independent credentials. On the hosted host, BYO mode needs BOTH: the
-  // access passcode (gate, verified server-side) AND the user's own API key.
-  const needsPass = !KEY_MODE;               // hosted host always requires the passcode
+  // One auth path everywhere: bring-your-own Anthropic key, gated by the
+  // access passcode (checked as a SHA-256 hash — never in plaintext here).
   const load = (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
   const [keyVal, setKeyVal] = useState(() => load(KEY_STORE));
   const [passVal, setPassVal] = useState(() => load(PASS_STORE));
@@ -204,7 +254,6 @@ function Appraiser() {
   const [li, setLi] = useState(0);
   const timer = useRef(null);
 
-  function switchMode(m) { setAuthMode(m); setErr(""); }
   function fail(msg) { setErr(msg); setState("error"); }
 
   useEffect(() => {
@@ -219,40 +268,26 @@ function Appraiser() {
     if (!clean) return;
     const key = keyVal.replace(/\s+/g, "");   // strip spaces/newlines from a wrapped paste
     const pass = passVal.replace(/\s+/g, "");
-    // validate the credentials this mode needs
-    if (needsPass && !pass) return fail("Enter the access passcode first.");
-    if (byo && !key) return fail("Add your Anthropic API key first.");
+    if (!pass) return fail("Enter the access passcode first.");
+    if (!key) return fail("Add your Anthropic API key first.");
+    if (sha256hex(pass) !== PASS_HASH) return fail("Wrong access passcode.");
     setState("loading"); setErr(""); setResult(null); setLi(0);
     try {
-      // hosted BYO: verify the passcode gate server-side before spending the key
-      if (byo && needsPass) {
-        const vr = await fetch("api/verify", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ passcode: pass }),
-        });
-        if (!vr.ok) return fail(vr.status === 401 ? "Wrong access passcode." : "Passcode check failed (" + vr.status + "). Try again.");
-      }
-      const res = byo
-        ? await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": key,
-              "anthropic-version": "2023-06-01",
-              "anthropic-dangerous-direct-browser-access": "true",
-            },
-            body: JSON.stringify({
-              model: "claude-sonnet-4-6",
-              max_tokens: 6000,
-              messages: [{ role: "user", content: buildPrompt(clean) }],
-              tools: [{ type: "web_search_20250305", name: "web_search" }],
-            }),
-          })
-        : await fetch("api/appraise", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: clean, passcode: pass }),
-          });
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 8000,
+          messages: [{ role: "user", content: buildPrompt(clean) }],
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+        }),
+      });
       if (!res.ok) {
         let detail = "";
         try { const e = await res.json(); detail = (e && e.error && e.error.message) || ""; } catch (x) {}
@@ -280,18 +315,23 @@ function Appraiser() {
         {/* masthead */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.inkLine}`, paddingBottom: 16, marginBottom: "clamp(28px,6vw,44px)", gap: 14, flexWrap: "wrap" }}>
           <img src="lb-logo.svg" alt="Living Best" style={{ height: 104, width: "auto" }} />
-          <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted, whiteSpace: "nowrap" }}>APPRAISER · THREE-LENS</span>
+          <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted, whiteSpace: "nowrap" }}>MULTIFACTORIAL MPI · FOUR LENSES</span>
         </div>
 
         {/* input / hero */}
         {state !== "done" && (
           <div style={{ marginBottom: 8 }}>
-            <h1 style={{ fontFamily: T.display, fontWeight: 500, fontSize: "clamp(30px,6vw,52px)", lineHeight: 1.04, letterSpacing: "-0.02em", margin: "0 0 18px", color: T.paper }}>
-              Paste a product.<br />Get the verdict, not the pitch.
+            <h1 style={{ fontFamily: T.display, fontWeight: 700, fontSize: "clamp(28px,5.4vw,46px)", lineHeight: 1.08, letterSpacing: "-0.02em", margin: "0 0 16px", color: T.paper }}>
+              Multifactorial Market Potential Indicator (MPI)
             </h1>
-            <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 580, margin: "0 0 30px" }}>
-              It researches the product, then scores it through three lenses — founder-mode judgement, the Living Best MPI benchmark, and a 30-expert panel review. A slick site counts for nothing on its own.
+            <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 620, margin: "0 0 14px" }}>
+              This tool includes four lenses:
             </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 30px" }}>
+              {["Silicon Valley View", "Japan Consumer View", "Expert View", "Market Landscape View"].map((v, i) => (
+                <span key={i} style={{ fontFamily: T.mono, fontSize: 12, letterSpacing: "0.04em", color: T.mint, border: `1px solid ${T.inkLine}`, background: T.ink2, borderRadius: 2, padding: "7px 12px" }}>{v}</span>
+              ))}
+            </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 320px", display: "flex", alignItems: "center", gap: 10, background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "0 14px" }}>
                 <Search size={16} color={T.muted} />
@@ -310,47 +350,27 @@ function Appraiser() {
               </button>
             </div>
 
-            {/* auth: on the hosted proxy, let the user choose passcode or their own key */}
-            {!KEY_MODE && (
-              <div style={{ marginTop: 14, display: "flex", gap: 6 }}>
-                {[["passcode", "Passcode"], ["byokey", "Your API key"]].map(([m, label]) => (
-                  <button key={m} onClick={() => switchMode(m)}
-                    style={{ background: authMode === m ? T.ink2 : "transparent", color: authMode === m ? T.paper : T.muted, border: `1px solid ${authMode === m ? T.accent : T.inkLine}`, borderRadius: 2, padding: "7px 14px", fontFamily: T.mono, fontSize: 11, letterSpacing: "0.06em", cursor: "pointer" }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* credential fields — passcode gate (hosted) and/or bring-your-own key */}
+            {/* credentials — access passcode + your own Anthropic key, always both */}
             {(() => {
               const row = { marginTop: 10, display: "flex", alignItems: "center", gap: 10, background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "0 14px" };
               const lab = { fontFamily: T.mono, fontSize: 11, letterSpacing: "0.08em", color: T.muted, whiteSpace: "nowrap" };
               const inp = { flex: 1, background: "transparent", border: "none", outline: "none", color: T.paper, fontFamily: T.mono, fontSize: 13, padding: "13px 0" };
               const onEnter = (e) => e.key === "Enter" && state !== "loading" && url.trim() && run();
               return (<>
-                {needsPass && (
-                  <div style={row}>
-                    <span style={lab}>PASSCODE</span>
-                    <input type="password" value={passVal} onChange={(e) => savePassVal(e.target.value)}
-                      onKeyDown={onEnter} placeholder="access passcode" autoComplete="off" spellCheck="false" style={inp} />
-                  </div>
-                )}
-                {byo && (
-                  <div style={row}>
-                    <span style={lab}>API&nbsp;KEY</span>
-                    <input type="password" value={keyVal} onChange={(e) => saveKeyVal(e.target.value)}
-                      onKeyDown={onEnter} placeholder="sk-ant-…  stored in this browser only" autoComplete="off" spellCheck="false" style={inp} />
-                  </div>
-                )}
+                <div style={row}>
+                  <span style={lab}>PASSCODE</span>
+                  <input type="password" value={passVal} onChange={(e) => savePassVal(e.target.value)}
+                    onKeyDown={onEnter} placeholder="access passcode" autoComplete="off" spellCheck="false" style={inp} />
+                </div>
+                <div style={row}>
+                  <span style={lab}>API&nbsp;KEY</span>
+                  <input type="password" value={keyVal} onChange={(e) => saveKeyVal(e.target.value)}
+                    onKeyDown={onEnter} placeholder="sk-ant-…  stored in this browser only" autoComplete="off" spellCheck="false" style={inp} />
+                </div>
               </>);
             })()}
             <p style={{ color: T.muted, fontSize: 12, lineHeight: 1.55, fontFamily: T.mono, margin: "8px 0 0" }}>
-              {byo && needsPass
-                ? "Access passcode required. Your own Anthropic key is saved only in this browser and sent directly to api.anthropic.com — the passcode is checked server-side but never sees your key."
-                : byo
-                ? "Your key is saved only in this browser's localStorage and sent directly to api.anthropic.com — nowhere else. Get a key at console.anthropic.com."
-                : "Appraisals run server-side on the shared key — no API key needed. Ask George for the passcode; it's remembered in this browser."}
+              Access passcode required (ask George). Your own Anthropic API key is saved only in this browser's localStorage and sent directly to api.anthropic.com — nowhere else. Get a key at console.anthropic.com.
             </p>
           </div>
         )}
@@ -378,7 +398,7 @@ function Appraiser() {
         {/* result */}
         {state === "done" && result && (() => {
           const band = BAND[bandFor(result.total)];
-          const m = result.mpi, ex = result.expert;
+          const m = result.mpi, ex = result.expert, land = result.landscape, xs = result.exec;
           const quadColor = (q) => (q === "SUPERSTAR" || q === "STAR") ? T.build
             : (q === "SLOTH" || q === "LION CUB") ? T.refine : T.notyet;
           const vColor = (v) => (v === "enthusiastic_endorse" || v === "endorse") ? T.build
@@ -403,9 +423,36 @@ function Appraiser() {
               <p style={{ color: T.paper, opacity: 0.85, fontSize: 15, lineHeight: 1.6, borderLeft: `2px solid ${band.color}`, paddingLeft: 14, margin: "0 0 8px" }}>{result.verdict}</p>
               <p style={{ color: T.muted, fontSize: 14, lineHeight: 1.6, paddingLeft: 16, margin: "0 0 32px" }}>{result.summary}</p>
 
+              {/* ── EXECUTIVE SUMMARY — synthesis of all four lenses ── */}
+              {xs && (
+                <div className="print-avoid-break" style={{ marginBottom: 40, border: `1.5px solid ${T.accent}`, borderRadius: 3, padding: "clamp(18px,4vw,26px)", background: T.ink2 }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.accent, marginBottom: 14 }}>EXECUTIVE SUMMARY · FOUR-LENS SYNTHESIS</div>
+                  <p style={{ fontFamily: T.display, fontWeight: 500, fontSize: 17, lineHeight: 1.55, color: T.paper, margin: "0 0 18px" }}>{xs.overall}</p>
+                  <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+                    {[["Silicon Valley View", xs.silicon_valley], ["Japan Consumer View", xs.japan_consumer],
+                      ["Expert View", xs.expert], ["Market Landscape View", xs.market_landscape]].map(([lens, line], i) => (
+                      line ? (
+                        <div key={i} style={{ display: "flex", gap: 12, alignItems: "baseline" }}>
+                          <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: "0.06em", color: T.mint, whiteSpace: "nowrap", minWidth: 158 }}>{lens.toUpperCase()}</span>
+                          <span style={{ fontSize: 13.5, lineHeight: 1.5, color: T.paper, opacity: 0.9 }}>{line}</span>
+                        </div>
+                      ) : null
+                    ))}
+                  </div>
+                  {xs.convergence && <div style={{ fontSize: 13, lineHeight: 1.55, color: T.muted, marginBottom: 6 }}><span style={{ fontFamily: T.mono, fontSize: 10, color: T.build }}>CONVERGENCE&nbsp;&nbsp;</span>{xs.convergence}</div>}
+                  {xs.tension && <div style={{ fontSize: 13, lineHeight: 1.55, color: T.muted, marginBottom: 6 }}><span style={{ fontFamily: T.mono, fontSize: 10, color: T.refine }}>TENSION&nbsp;&nbsp;</span>{xs.tension}</div>}
+                  {xs.next_step && (
+                    <div style={{ borderTop: `1px solid ${T.inkLine}`, marginTop: 12, paddingTop: 12, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <ArrowRight size={15} color={T.accent} style={{ flexShrink: 0, marginTop: 3 }} />
+                      <span style={{ fontSize: 14, lineHeight: 1.55, color: T.paper }}>{xs.next_step}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* scorecard on paper */}
               <div style={{ background: T.paper, color: T.dark, borderRadius: 3, padding: "clamp(18px,4vw,28px)" }}>
-                <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper, marginBottom: 18 }}>LENS 1 · FOUNDER-MODE (YC) SCORECARD</div>
+                <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper, marginBottom: 18 }}>LENS 1 · SILICON VALLEY VIEW (FOUNDER-MODE SCORECARD)</div>
                 {(result.dimensions || []).map((d, i) => {
                   const meta = DIMS.find((x) => x.key === d.key) || { label: d.key };
                   const weak = d.key === result.weakest_link;
@@ -467,7 +514,7 @@ function Appraiser() {
               {m && (
                 <div style={{ marginTop: 40, background: T.paper, color: T.dark, borderRadius: 3, padding: "clamp(18px,4vw,28px)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-                    <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper }}>LENS 2 · MPI BENCHMARK <span style={{ opacity: 0.7 }}>(predicted vs Living Best QOL study)</span></div>
+                    <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper }}>LENS 2 · JAPAN CONSUMER VIEW <span style={{ opacity: 0.7 }}>(predicted vs Living Best MPI study)</span></div>
                     <div style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.12em", color: quadColor(m.quadrant) }}>{m.quadrant}</div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
@@ -505,7 +552,7 @@ function Appraiser() {
               {ex && (
                 <div style={{ marginTop: 40 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                    <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted }}>LENS 3 · EXPERT PANEL <span style={{ opacity: 0.7 }}>(30 aging / Japan-market experts)</span></div>
+                    <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted }}>LENS 3 · EXPERT VIEW <span style={{ opacity: 0.7 }}>(30 aging / Japan-market experts)</span></div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       {ex.vs_quant && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted }}>{String(ex.vs_quant).replace(/_/g, " ")}</span>}
                       <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", color: vColor(ex.overall_verdict), border: `1px solid ${vColor(ex.overall_verdict)}`, borderRadius: 2, padding: "4px 10px" }}>{String(ex.overall_verdict || "").replace(/_/g, " ").toUpperCase()}</span>
@@ -553,6 +600,46 @@ function Appraiser() {
                 </div>
               )}
 
+              {/* ── LENS 4 · MARKET LANDSCAPE VIEW ── */}
+              {land && (
+                <div style={{ marginTop: 40, background: T.paper, color: T.dark, borderRadius: 3, padding: "clamp(18px,4vw,28px)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
+                    <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper }}>LENS 4 · MARKET LANDSCAPE VIEW <span style={{ opacity: 0.7 }}>(positioning + competitors)</span></div>
+                    {land.category_maturity && <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 11, letterSpacing: "0.1em", color: T.dark, border: `1px solid ${T.paperLine}`, borderRadius: 2, padding: "4px 10px", background: T.mint }}>{String(land.category_maturity).toUpperCase()} CATEGORY</span>}
+                  </div>
+                  {land.read && <p style={{ fontSize: 15, lineHeight: 1.6, color: T.dark, borderLeft: `2px solid ${T.accent}`, paddingLeft: 14, margin: "12px 0 18px" }}>{land.read}</p>}
+                  {land.competitors && land.competitors.length > 0 && (
+                    <div style={{ marginBottom: 18 }}>
+                      <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.mutedPaper, marginBottom: 10 }}>WHO A BUYER ACTUALLY CONSIDERS</div>
+                      {land.competitors.map((c, i) => (
+                        <div key={i} className="print-avoid-break" style={{ padding: "12px 0", borderTop: i ? `1px solid ${T.paperLine}` : "none" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                            <span style={{ fontFamily: T.display, fontWeight: 700, fontSize: 15.5, color: T.dark }}>{c.name}</span>
+                            <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: "0.08em", color: T.mutedPaper, whiteSpace: "nowrap" }}>{String(c.type || "").toUpperCase()}</span>
+                          </div>
+                          {c.note && <div style={{ fontSize: 13.5, lineHeight: 1.5, color: T.dark, opacity: 0.85, marginTop: 3 }}>{c.note}</div>}
+                          {c.edge && <div style={{ fontSize: 13, lineHeight: 1.5, color: T.mutedPaper, marginTop: 3, fontStyle: "italic" }}>{c.edge}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {land.axes && <div><span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.mutedPaper }}>WHAT DECIDES PURCHASES</span>
+                      <div style={{ fontSize: 14, lineHeight: 1.55, color: T.dark, marginTop: 4 }}>{land.axes}</div></div>}
+                    {land.nearest && <div><span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.mutedPaper }}>NEAREST RIVAL</span>
+                      <div style={{ fontSize: 14, lineHeight: 1.55, color: T.dark, marginTop: 4 }}>{land.nearest}</div></div>}
+                    {land.white_space && <div><span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.mutedPaper }}>WHITE SPACE</span>
+                      <div style={{ fontSize: 14, lineHeight: 1.55, color: T.dark, marginTop: 4 }}>{land.white_space}</div></div>}
+                    {land.positioning_statement && (
+                      <div style={{ borderTop: `1px solid ${T.paperLine}`, paddingTop: 12 }}>
+                        <span style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.mutedPaper }}>POSITIONING STATEMENT</span>
+                        <div style={{ fontFamily: T.display, fontWeight: 500, fontSize: 15.5, lineHeight: 1.55, color: T.dark, marginTop: 5 }}>{land.positioning_statement}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="no-print" style={{ marginTop: 40, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button onClick={() => savePdf(result)} style={{ background: T.paper, color: T.dark, border: "none", borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                   <Download size={14} /> SAVE AS PDF
@@ -566,7 +653,7 @@ function Appraiser() {
               </div>
 
               <p style={{ marginTop: 28, fontSize: 12, lineHeight: 1.6, color: T.muted, fontFamily: T.mono }}>
-                Three lenses, one product. Lens 1 is founder-mode judgement. Lens 2 predicts placement on the Living Best MPI (135-concept QOL study, real study-wide averages) — a prediction, not a fielded survey. Lens 3 applies the framework 30 aging/Japan-market experts actually used; calibrated to that domain, applied by analogy elsewhere.
+                Four lenses, one product. Silicon Valley View is founder-mode judgement. Japan Consumer View predicts placement on the Living Best MPI (135-concept QOL study, real study-wide averages) — a prediction, not a fielded survey. Expert View applies the framework 30 aging/Japan-market experts actually used. Market Landscape View maps named competitors and positioning from live research. Lenses 2–3 are calibrated to the eldercare/Japan domain and applied by analogy elsewhere.
               </p>
             </div>
           );

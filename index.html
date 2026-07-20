@@ -182,7 +182,7 @@ Do real competitive research with web search — do not stop at the product's ow
 - Positioning statement: one sentence — "For [buyer] who [need], this is the [category] that [key difference], unlike [nearest alternative]."
 
 ═══ EXECUTIVE SUMMARY — synthesize all four lenses ═══
-After completing all four lenses, write the synthesis a decision-maker reads first: an overall call in 2–3 sentences (invest attention / proceed with conditions / pass — and why), one line per lens, where the lenses converge, the sharpest tension between any two lenses and which one to trust more here, and the single next step.
+After completing all four lenses, write the synthesis a decision-maker reads first: an overall call in 2–3 sentences (invest attention / proceed with conditions / pass — and why), one line per lens, where the lenses converge, the sharpest tension between any two lenses and which one to trust more here, and the single next step. Keep these lines qualitative — do not quote numeric scores or the /60 total in the executive summary.
 
 Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
 {"product":"","one_liner":"","summary":"2-3 sentence read of what you found",
@@ -407,21 +407,12 @@ function Appraiser() {
           const pct = (x) => `${Math.round((Number(x) || 0) * 100)}%`;
           return (
             <div>
-              {/* verdict header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap", marginBottom: 22 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted, marginBottom: 6 }}>{result.url}</div>
-                  <h1 style={{ fontFamily: T.display, fontWeight: 700, fontSize: "clamp(26px,5vw,40px)", lineHeight: 1.05, letterSpacing: "-0.02em", margin: "0 0 8px", color: T.paper }}>{result.product || "Untitled product"}</h1>
-                  <div style={{ color: T.muted, fontSize: 15, maxWidth: 480 }}>{result.one_liner}</div>
-                </div>
-                <div style={{ flexShrink: 0, border: `1.5px solid ${band.color}`, borderRadius: 2, padding: "14px 18px", textAlign: "center", minWidth: 124 }}>
-                  <div style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 34, lineHeight: 1, color: band.color }}>{result.total}<span style={{ fontSize: 16, color: T.muted }}>/60</span></div>
-                  <div style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, letterSpacing: "0.14em", color: band.color, marginTop: 8 }}>{band.word}</div>
-                </div>
+              {/* product header — identification only; the appraisal starts with the executive summary */}
+              <div style={{ marginBottom: 26 }}>
+                <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.12em", color: T.muted, marginBottom: 6 }}>{result.url}</div>
+                <h1 style={{ fontFamily: T.display, fontWeight: 700, fontSize: "clamp(26px,5vw,40px)", lineHeight: 1.05, letterSpacing: "-0.02em", margin: "0 0 8px", color: T.paper }}>{result.product || "Untitled product"}</h1>
+                <div style={{ color: T.muted, fontSize: 15, maxWidth: 560 }}>{result.one_liner}</div>
               </div>
-
-              <p style={{ color: T.paper, opacity: 0.85, fontSize: 15, lineHeight: 1.6, borderLeft: `2px solid ${band.color}`, paddingLeft: 14, margin: "0 0 8px" }}>{result.verdict}</p>
-              <p style={{ color: T.muted, fontSize: 14, lineHeight: 1.6, paddingLeft: 16, margin: "0 0 32px" }}>{result.summary}</p>
 
               {/* ── EXECUTIVE SUMMARY — synthesis of all four lenses ── */}
               {xs && (
@@ -452,7 +443,12 @@ function Appraiser() {
 
               {/* scorecard on paper */}
               <div style={{ background: T.paper, color: T.dark, borderRadius: 3, padding: "clamp(18px,4vw,28px)" }}>
-                <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper, marginBottom: 18 }}>LENS 1 · SILICON VALLEY VIEW (FOUNDER-MODE SCORECARD)</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper }}>LENS 1 · SILICON VALLEY VIEW <span style={{ opacity: 0.7 }}>(founder-mode scorecard)</span></div>
+                  <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.12em", color: band.color, border: `1px solid ${band.color}`, borderRadius: 2, padding: "4px 10px" }}>{band.word}</span>
+                </div>
+                {result.verdict && <p style={{ fontSize: 15, lineHeight: 1.6, color: T.dark, borderLeft: `2px solid ${band.color}`, paddingLeft: 14, margin: "0 0 8px" }}>{result.verdict}</p>}
+                {result.summary && <p style={{ fontSize: 13.5, lineHeight: 1.6, color: T.mutedPaper, paddingLeft: 16, margin: "0 0 18px" }}>{result.summary}</p>}
                 {(result.dimensions || []).map((d, i) => {
                   const meta = DIMS.find((x) => x.key === d.key) || { label: d.key };
                   const weak = d.key === result.weakest_link;

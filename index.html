@@ -133,7 +133,7 @@ function sha256hex(str) {
   return H.map(x => (x >>> 0).toString(16).padStart(8, "0")).join("");
 }
 
-// ── MPI benchmark (Living Best QOL study — 135 concepts, real study-wide averages) ──
+// ── MPI benchmark (Living Best QOL study — 174 tested concepts; averages from its master benchmark set) ──
 const MPI_AVG = { addressable: 0.5031, market_interest: 0.273, purchase_interest: 0.1433,
                   intrigue: 0.5436, urgency: 0.5237 };
 // Expert framework mined from 30 aging/eldercare + Japan-market expert interviews:
@@ -164,7 +164,7 @@ Be stingy: a 7+ needs concrete behavioral evidence (people paying, expanding usa
 Bands: 45–60 strong; 30–44 refine; <30 not proven. Then 2–3 directions (one minimal wedge, one ideal, optionally one lateral) each with effort S/M/L + risk Low/Med/High; recommend one tied to the weakest dimension; end with ONE concrete evidence-producing action.
 
 ═══ LENS 2 — JAPAN CONSUMER VIEW (Living Best MPI concept-test benchmark) ═══
-Estimate how this product would score if it were run through a large consumer concept-test survey (the Living Best MPI, a QOL/eldercare study of 135 concepts). Estimate THREE fractions 0–1, grounded in your research and calibrated to the study benchmarks:
+Estimate how this product would score if it were run through a large consumer concept-test survey (the Living Best MPI, a QOL/eldercare study of 174 tested concepts). Estimate THREE fractions 0–1, grounded in your research and calibrated to the study benchmarks:
 - addressable: fraction who would see it as appropriate for at least one buying scenario (did NOT pick "none of the above"). Study average ≈ 0.50.
 - market_interest: top-3-box interest with the 3rd box discounted 50%. Study average ≈ 0.27.
 - purchase_interest: top-2-box purchase intent with the 2nd box discounted 50%. Study average ≈ 0.14.
@@ -184,6 +184,9 @@ Do real competitive research with web search — do not stop at the product's ow
 ═══ EXECUTIVE SUMMARY — synthesize all four lenses ═══
 After completing all four lenses, write the synthesis a decision-maker reads first: an overall call in 2–3 sentences (invest attention / proceed with conditions / pass — and why), one line per lens, where the lenses converge, the sharpest tension between any two lenses and which one to trust more here, and the single next step. Keep these lines qualitative — do not quote numeric scores or the /60 total in the executive summary.
 
+═══ QUESTIONS FOR THE FOUNDERS ═══
+Write 5–8 follow-up questions we would put to the founders, each one produced by a specific gap this appraisal surfaced — a missing piece of evidence from the Silicon Valley view, an unproven consumer assumption from the Japan view, a risk the expert panel would press on, or an unclear competitive claim from the landscape. Sharp diligence questions, not generic ones: each should be answerable with a number, a document, or a named customer, and a founder should not be able to deflect it with vision talk. No question that could be asked of any company.
+
 Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
 {"product":"","one_liner":"","summary":"2-3 sentence read of what you found",
  "dimensions":[{"key":"demand","score":0,"justification":"one line tied to a fact you found","evidence_missing":"what you couldn't find","change_my_mind":"what evidence would move this"}],
@@ -193,8 +196,9 @@ Respond with ONLY a JSON object, no markdown, no preamble, exactly this shape:
  "mpi":{"addressable":0.0,"market_interest":0.0,"purchase_interest":0.0,"rationale":"one line on why these fractions","vs_benchmark":"one line vs study averages"},
  "expert":{"overall_verdict":"enthusiastic_endorse|endorse|mixed|skeptical|reject","risks":[{"theme":"","severity":"hard|medium|easy","note":"one line"}],"strengths":["one line"],"japan_entry":"single strongest entry risk or enabler","vs_quant":"expert_more_bullish|aligned|expert_more_bearish","reading":"1-2 sentences: what the expert lens adds beyond the survey score"},
  "landscape":{"category_maturity":"nascent|growing|crowded|consolidating","competitors":[{"name":"","type":"direct|adjacent|substitute","note":"what it is + pricing if found","edge":"beats/matches/loses vs this product, and on what"}],"axes":"the two criteria that decide purchases + where this product sits on each","nearest":"who sits closest and why","white_space":"one blunt line: real differentiation or marketing","positioning_statement":"For [buyer] who [need], this is the [category] that [difference], unlike [nearest alternative]","read":"1-2 sentence blunt read of the competitive position"},
- "exec":{"overall":"2-3 sentence call: invest attention / proceed with conditions / pass — and why","silicon_valley":"one line","japan_consumer":"one line","expert":"one line","market_landscape":"one line","convergence":"one line: where the lenses agree","tension":"one line: sharpest disagreement between two lenses and which to trust here","next_step":"one line"}}
-All six dimensions in the array, in order.`;
+ "exec":{"overall":"2-3 sentence call: invest attention / proceed with conditions / pass — and why","silicon_valley":"one line","japan_consumer":"one line","expert":"one line","market_landscape":"one line","convergence":"one line: where the lenses agree","tension":"one line: sharpest disagreement between two lenses and which to trust here","next_step":"one line"},
+ "founder_questions":[{"question":"the question, addressed to the founders","why":"one line: which gap from this appraisal it closes","lens":"silicon_valley|japan_consumer|expert|market_landscape"}]}
+All six dimensions in the array, in order. 5-8 founder questions.`;
 }
 
 // derive MPI indices from the three estimated fractions using the real study averages
@@ -399,6 +403,9 @@ function Appraiser() {
         {state === "done" && result && (() => {
           const band = BAND[bandFor(result.total)];
           const m = result.mpi, ex = result.expert, land = result.landscape, xs = result.exec;
+          const fq = Array.isArray(result.founder_questions) ? result.founder_questions : [];
+          const LENS_NAME = { silicon_valley: "Silicon Valley View", japan_consumer: "Japan Consumer View",
+                              expert: "Expert View", market_landscape: "Market Landscape View" };
           const quadColor = (q) => (q === "SUPERSTAR" || q === "STAR") ? T.build
             : (q === "SLOTH" || q === "LION CUB") ? T.refine : T.notyet;
           const vColor = (v) => (v === "enthusiastic_endorse" || v === "endorse") ? T.build
@@ -445,7 +452,10 @@ function Appraiser() {
               <div style={{ background: T.paper, color: T.dark, borderRadius: 3, padding: "clamp(18px,4vw,28px)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
                   <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.mutedPaper }}>LENS 1 · SILICON VALLEY VIEW <span style={{ opacity: 0.7 }}>(founder-mode scorecard)</span></div>
-                  <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.12em", color: band.color, border: `1px solid ${band.color}`, borderRadius: 2, padding: "4px 10px" }}>{band.word}</span>
+                  <span style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                    <span style={{ fontFamily: T.mono, fontSize: 12, color: T.mutedPaper }}>{result.total}<span style={{ fontSize: 10 }}>/60</span></span>
+                    <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.12em", color: band.color, border: `1px solid ${band.color}`, borderRadius: 2, padding: "4px 10px" }}>{band.word}</span>
+                  </span>
                 </div>
                 {result.verdict && <p style={{ fontSize: 15, lineHeight: 1.6, color: T.dark, borderLeft: `2px solid ${band.color}`, paddingLeft: 14, margin: "0 0 8px" }}>{result.verdict}</p>}
                 {result.summary && <p style={{ fontSize: 13.5, lineHeight: 1.6, color: T.mutedPaper, paddingLeft: 16, margin: "0 0 18px" }}>{result.summary}</p>}
@@ -636,6 +646,32 @@ function Appraiser() {
                 </div>
               )}
 
+              {/* ── QUESTIONS FOR THE FOUNDERS ── */}
+              {fq.length > 0 && (
+                <div style={{ marginTop: 40 }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: "0.14em", color: T.muted, marginBottom: 6 }}>QUESTIONS FOR THE FOUNDERS</div>
+                  <p style={{ fontSize: 13, lineHeight: 1.55, color: T.muted, margin: "0 0 16px" }}>
+                    Follow-ups produced by the gaps this appraisal surfaced — each answerable with a number, a document, or a named customer.
+                  </p>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {fq.map((q, i) => (
+                      <div key={i} className="print-avoid-break" style={{ background: T.ink2, border: `1px solid ${T.inkLine}`, borderRadius: 2, padding: "14px 16px" }}>
+                        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                          <span style={{ fontFamily: T.mono, fontWeight: 700, fontSize: 13, color: T.accent, flexShrink: 0, marginTop: 1 }}>{String(i + 1).padStart(2, "0")}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: T.display, fontWeight: 500, fontSize: 15.5, lineHeight: 1.5, color: T.paper }}>{q.question}</div>
+                            <div style={{ fontSize: 12.5, lineHeight: 1.5, color: T.muted, marginTop: 5 }}>
+                              {LENS_NAME[q.lens] && <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: "0.06em", color: T.mint }}>{LENS_NAME[q.lens].toUpperCase()}&nbsp;&nbsp;</span>}
+                              {q.why}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="no-print" style={{ marginTop: 40, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button onClick={() => savePdf(result)} style={{ background: T.paper, color: T.dark, border: "none", borderRadius: 2, padding: "11px 18px", fontFamily: T.mono, fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                   <Download size={14} /> SAVE AS PDF
@@ -649,7 +685,7 @@ function Appraiser() {
               </div>
 
               <p style={{ marginTop: 28, fontSize: 12, lineHeight: 1.6, color: T.muted, fontFamily: T.mono }}>
-                Four lenses, one product. Silicon Valley View is founder-mode judgement. Japan Consumer View predicts placement on the Living Best MPI (135-concept QOL study, real study-wide averages) — a prediction, not a fielded survey. Expert View applies the framework 30 aging/Japan-market experts actually used. Market Landscape View maps named competitors and positioning from live research. Lenses 2–3 are calibrated to the eldercare/Japan domain and applied by analogy elsewhere.
+                Four lenses, one product. Silicon Valley View is founder-mode judgement. Japan Consumer View predicts placement on the Living Best MPI (174-concept QOL study, real study-wide averages) — a prediction, not a fielded survey. Expert View applies the framework 30 aging/Japan-market experts actually used. Market Landscape View maps named competitors and positioning from live research. Lenses 2–3 are calibrated to the eldercare/Japan domain and applied by analogy elsewhere.
               </p>
             </div>
           );
